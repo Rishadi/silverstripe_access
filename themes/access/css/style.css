@@ -1,0 +1,168 @@
+
+@media only screen and (max-width: 1920px) {
+    body {
+        background-color: #e6e7e8;
+    }
+.contactus, .assessmentform{
+    padding: 10px 10px;
+}
+input#usrfname, input#usrlname, input#email, input#occupation, textarea#message, textarea#work-experience, textarea#inquiry{
+    width: 40%;
+}
+.center_div{
+    margin: 0 auto;
+    width:40%;
+    }
+}
+@media only screen and (max-device-width: 480px) {
+.caption-wrapper {
+    float: right;
+    width: 250px;
+}
+.slide_caption {
+    position: absolute;
+    z-index: 2;
+    background-color: black;
+    margin-top: 0px;
+    border-radius: 15px;
+    margin-left: 100px;
+ 
+}
+.slide_caption p{
+    font-size: 6px;
+    color: #fff;
+    width: 167px;
+    height: 15px;
+}
+.slide_caption a{
+    color: #fff;
+    text-decoration: none;
+}
+input#usrfname, input#usrlname, input#email, input#occupation, textarea#message, textarea#work-experience, textarea#inquiry{
+    width: 170px;
+}
+}
+/* ---header--*/
+#logo{
+    margin-top: -13px;
+}
+ul.navbar-right{
+    font-size: 17px;
+    }
+.navbar{
+    border-radius: 0;
+    min-height: 70px;
+    margin-bottom: 0;
+}
+.jssorb05 {
+    position: absolute;
+}
+.jssorb05 div, .jssorb05 div:hover, .jssorb05 .av {
+    position: absolute;
+    /* size of bullet elment */
+    width: 16px;
+    height: 16px;
+    background: url('img/b05.png') no-repeat;
+    overflow: hidden;
+    cursor: pointer;
+}
+.jssorb05 div {
+    background-position: -7px -7px;
+}
+.jssorb05 div:hover, .jssorb05 .av:hover {
+    background-position: -37px -7px; 
+}
+.jssorb05 .av {
+    background-position: -67px -7px;
+}
+.jssorb05 .dn, .jssorb05 .dn:hover {
+    background-position: -97px -7px;
+}
+
+.jssora22l, .jssora22r {
+    display: block;
+    position: absolute;
+    /* size of arrow element */
+    width: 40px;
+    height: 58px;
+    cursor: pointer;
+    background: url('img/a22.png') center center no-repeat;
+    overflow: hidden;
+}
+.visa{
+    font-size: 30px;
+
+    }
+.visa li{
+    list-style: none;
+    background-color:red;
+    margin-top: 300px;
+}
+.caption-wrapper {
+    float: right;
+    width: 300px;
+}
+.slide_caption {
+    position: absolute;
+    z-index: 2;
+    background-color: black;
+    margin-top: 5px;
+    border-radius: 15px;
+    margin-left: 100px;
+}
+.slide_caption p{
+    font-size: 90%;
+    color: #fff;
+    font-weight: bold;
+    padding: 10px 10px;
+    line-height: 1.2em;
+}
+.slide_caption a{
+    color: #fff;
+    text-decoration: none;
+}
+/*--content--*/
+h2{
+    color: blue;
+}
+.imageclip{
+    width:100%;
+}
+#studentvisa, #skilledvisa, #familyvisa
+{
+    background-color:#e6e7e8;
+}
+/* ---form--*/
+.contactus, .assessmentform{
+    padding: 10px 10px;
+}
+#usrfname, #usrlname, #email, #occupation{
+    width: 40%;
+}
+.center_div{
+    margin: 0 auto;
+    width:80%;
+}
+/*---about-me------*/
+#about-me{
+ border-style: solid;
+ border-color: #696969;
+ border-radius: 3em;
+ margin-top: 10px;
+}
+.pull-left{
+    padding-right: 15px;
+}
+footer{
+    text-align: center;
+    background-color: #000;
+    color: #fff;
+}
+/*---Index-page---*/
+
+#free-banner{
+    background-color: #000;
+}
+#home, #about-me{
+margin-top: 20px;
+}
