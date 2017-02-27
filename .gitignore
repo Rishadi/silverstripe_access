@@ -1,1 +1,4 @@
 nbproject/*
+assets/*
+_ss_environment.php
+composer.json
