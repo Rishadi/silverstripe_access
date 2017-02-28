@@ -7,8 +7,10 @@
  * applied, rather than applying the sort in place
  *
  * @see SS_List, SS_Filterable, SS_Limitable
+ * @package framework
+ * @subpackage model
  */
-interface SS_Sortable {
+interface SS_Sortable extends SS_List {
 
 	/**
 	 * Returns TRUE if the list can be sorted by a field.
@@ -29,8 +31,8 @@ interface SS_Sortable {
 	 * @example $list = $list->sort(array('Name'=>'ASC,'Age'=>'DESC'));
 	 */
 	public function sort();
-	
-	
+
+
 	/**
 	 * Return a new instance of this list based on reversing the current sort.
 	 *

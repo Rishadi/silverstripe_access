@@ -160,11 +160,32 @@
 			},
 
 			//Add search (aka query) params to the specified url.
+			// 2013-12-06 ischommer: Customized to merge with existing keys
 			addSearchParams: function( url, params ) {
 				var u = path.parseUrl( url ),
-					p = ( typeof params === "object" ) ? $.param( params ) : params,
-					s = u.search || "?";
-				return u.hrefNoSearch + s + ( s.charAt( s.length - 1 ) !== "?" ? "&" : "" ) + p + ( u.hash || "" );
+					params = ( typeof params === "string" ) ? path.convertSearchToArray( params ) : params,
+					newParams = $.extend( path.convertSearchToArray( u.search ), params );
+				return u.hrefNoSearch + '?' + $.param( newParams ) + ( u.hash || "" );
+			},
+
+			// 2013-12-06 ischommer: Added to allow merge with existing keys
+			getSearchParams: function(url) {
+				var u = path.parseUrl( url );
+				return path.convertSearchToArray( u.search );
+			},
+
+			// Converts query strings (foo=bar&baz=bla) to a hash.
+			// TODO Handle repeating elements (e.g. arr[]=one&arr[]=two)
+			// 2013-12-06 ischommer: Added to allow merge with existing keys
+			convertSearchToArray: function(search) {
+				var params = {},
+					search = search.replace( /^\?/, '' ),
+					parts = search ? search.split( '&' ) : [], i, tmp;
+				for(i=0; i < parts.length; i++) {
+					tmp = parts[i].split( '=' );
+					params[tmp[0]] = tmp[1];
+				}
+				return params;
 			},
 
 			convertUrlToDataUrl: function( absUrl ) {
@@ -173,8 +194,8 @@
 					// For embedded pages, remove the dialog hash key as in getFilePath(),
 					// otherwise the Data Url won't match the id of the embedded Page.
 					return u.hash.split( dialogHashKey )[0].replace( /^#/, "" );
-				} else if ( path.isSameDomain( u, documentBase ) ) {
-					return u.hrefNoHash.replace( documentBase.domain, "" );
+				} else if ( path.isSameDomain( u, document ) ) {
+					return u.hrefNoHash.replace( document.domain, "" );
 				}
 				return absUrl;
 			},
@@ -206,7 +227,7 @@
 
 			//return a url path with the window's location protocol/hostname/pathname removed
 			clean: function( url ) {
-				return url.replace( documentBase.domain, "" );
+				return url.replace( document.domain, "" );
 			},
 
 			//just return the url without an initial #
@@ -223,13 +244,13 @@
 			//could be mailto, etc
 			isExternal: function( url ) {
 				var u = path.parseUrl( url );
-				return u.protocol && u.domain !== documentUrl.domain ? true : false;
+				return u.protocol && u.domain !== document.domain ? true : false;
 			},
 
 			hasProtocol: function( url ) {
 				return ( /^(:?\w+:)/ ).test( url );
 			}
 	};
-	
+
 	$.path = path;
 }(jQuery));

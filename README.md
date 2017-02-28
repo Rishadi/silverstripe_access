@@ -4,6 +4,7 @@ Base project folder for a SilverStripe ([http://silverstripe.org](http://silvers
 
  * [`framework`](http://github.com/silverstripe/silverstripe-framework): Module including the base framework
  * [`cms`](http://github.com/silverstripe/silverstripe-cms): Module including a Content Management System
+ * [`siteconfig`](http://github.com/silverstripe/silverstripe-siteconfig): Module providing a Settings tab in the admin section allowing users to set site wide global configuration.
  * `themes/simple` (optional)
 
 ## Installation ##
@@ -13,7 +14,8 @@ and [installation from source](http://doc.silverstripe.org/framework/en/installa
 
 ## Bugtracker ##
 
-Bugs are tracked on [github.com](https://github.com/silverstripe/framework/issues). 
+Bugs are tracked on github.com ([framework issues](https://github.com/silverstripe/silverstripe-framework/issues),
+[cms issues](https://github.com/silverstripe/silverstripe-cms/issues)). 
 Please read our [issue reporting guidelines](http://doc.silverstripe.org/framework/en/misc/contributing/issues).
 
 ## Development and Contribution ##

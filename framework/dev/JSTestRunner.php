@@ -3,52 +3,58 @@
  * Controller that executes QUnit tests via jQuery.
  * Finds all htm/html files located in <yourmodule>/javascript/tests
  * and includes them as iFrames.
- * 
+ *
  * To create your own tests, please use this template:
  * <code>
- * <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
- * <html>
- * <head>
- * <script src="http://code.jquery.com/jquery-latest.js"></script>
- * <link rel="stylesheet" href="http://dev.jquery.com/view/trunk/qunit/testsuite.css" type="text/css" media="screen" />
- * <script>
- * 	$(document).ready(function(){
- * 		test("test my feature", function() {
- * 			ok('mytest');
- * 		});
- * 	});
- * </script>
- * </head>
- * <body>
- * <script type="text/javascript" src="http://jqueryjs.googlecode.com/svn/trunk/qunit/testrunner.js"></script>
- *  <h1>My Test Name</h1>
- *  <h2 id="banner"></h2>
- *  <h2 id="userAgent"></h2>
- *  <ol id="tests"></ol>
- *  <div id="main"></div>
- * </body>
+ * <!DOCTYPE html>
+ * <html id="html">
+ * 	<head>
+ * 		<title>jQuery - Validation Test Suite</title>
+ * 		<link rel="Stylesheet" media="screen"
+ * 			href="thirdparty/jquery-validate/test/qunit/qunit.css" />
+ * 		<script type="text/javascript"
+ * 			src="thirdparty/jquery-validate/lib/jquery.js"></script>
+ * 		<script type="text/javascript"
+ * 			src="thirdparty/jquery-validate/test/qunit/qunit.js"></script>
+ * 		<script>
+ * 			$(document).ready(function(){
+ * 				test("test my feature", function() {
+ * 					ok('mytest');
+ * 				});
+ * 			});
+ * 		</script>
+ * 	</head>
+ * 	<body id="body">
+ * 		<h1 id="qunit-header">
+ * 			<a href="http://bassistance.de/jquery-plugins/jquery-plugin-validation/">
+ * 				jQuery Validation Plugin</a> Test Suite</h1>
+ * 		<h2 id="qunit-banner"></h2>
+ * 		<div id="qunit-testrunner-toolbar"></div>
+ * 		<h2 id="qunit-userAgent"></h2>
+ * 		<ol id="qunit-tests"></ol>
+ * 	</body>
  * </html>
  * </code>
- * 
+ *
  * @package framework
  * @subpackage testing
  */
 class JSTestRunner extends Controller {
 	/** @ignore */
 	private static $default_reporter;
-	
+
 	private static $url_handlers = array(
 		'' => 'browse',
 		'$TestCase' => 'only',
 	);
-	
+
 	private static $allowed_actions = array(
 		'index',
 		'all',
 		'browse',
 		'only'
 	);
-	
+
 	/**
 	 * Override the default reporter with a custom configured subclass.
 	 *
@@ -58,29 +64,29 @@ class JSTestRunner extends Controller {
 		if (is_string($reporter)) $reporter = new $reporter;
 		self::$default_reporter = $reporter;
 	}
-	
+
 	public function init() {
 		parent::init();
-		
+
 		if(Director::is_cli()) {
 			echo "Error: JSTestRunner cannot be run in CLI mode\n";
 			die();
 		}
-		
+
 		if (!self::$default_reporter) self::set_reporter('DebugView');
 	}
-	
+
 	public function Link() {
 		return Controller::join_links(Director::absoluteBaseURL(), 'dev/jstests/');
 	}
-	
+
 	/**
 	 * Run all test classes
 	 */
 	public function all() {
 		$this->runTests(array_keys($this->getAllTestFiles()));
 	}
-	
+
 	/**
 	 * Browse all enabled test cases in the environment
 	 */
@@ -99,13 +105,13 @@ class JSTestRunner extends Controller {
 		echo '</div>';
 		self::$default_reporter->writeFooter();
 	}
-		
+
 	/**
 	 * Run only a single test class
 	 */
 	public function only($request) {
 		$test = $request->param('TestCase');
-		
+
 		if ($test == 'all') {
 			$this->all();
 		} else {
@@ -114,7 +120,7 @@ class JSTestRunner extends Controller {
 				user_error("TestRunner::only(): Invalid TestCase '$className', cannot find matching class",
 					E_USER_ERROR);
 			}
-			
+
 			$this->runTests(array($test));
 		}
 	}
@@ -130,28 +136,28 @@ class JSTestRunner extends Controller {
 			$testUrl = $this->urlForTestCase($test);
 			if(!$testUrl) user_error('JSTestRunner::runTests(): Test ' . $test . ' not found', E_USER_ERROR);
 			$absTestUrl = Director::absoluteBaseURL() . $testUrl;
-			
+
 			echo '<iframe src="' . $absTestUrl . '" width="800" height="300"></iframe>';
 		}
-				
+
 		$this->tearDown();
 	}
-	
+
 	public function setUp() {
 	}
-	
+
 	public function tearDown() {
 	}
-	
+
 	protected function getAllTestFiles() {
 		$testFiles = array();
-		
+
 		$baseDir = Director::baseFolder();
 		$modules = scandir($baseDir);
 		foreach($modules as $moduleFileOrFolder) {
 			if(
-				$moduleFileOrFolder[0] == '.' 
-				|| !@is_dir("$baseDir/$moduleFileOrFolder") 
+				$moduleFileOrFolder[0] == '.'
+				|| !@is_dir("$baseDir/$moduleFileOrFolder")
 				|| !file_exists("$baseDir/$moduleFileOrFolder/_config.php")
 			) {
 				continue;
@@ -174,10 +180,10 @@ class JSTestRunner extends Controller {
 
 		return $testFiles;
 	}
-	
+
 	/**
 	 * Returns the URL for a test case file.
-	 * 
+	 *
 	 * @return string
 	 */
 	protected function urlForTestCase($testName) {

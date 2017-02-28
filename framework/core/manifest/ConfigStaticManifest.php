@@ -9,6 +9,7 @@
  * optionally catch attempts to modify the config statics (otherwise the modification will appear
  * to work, but won't actually have any effect - the equvilent of failing silently)
  *
+ * @package framework
  * @subpackage manifest
  */
 class SS_ConfigStaticManifest {
@@ -78,7 +79,7 @@ class SS_ConfigStaticManifest {
 			$static = $this->statics[$class][$name];
 
 			if ($static['access'] != T_PRIVATE) {
-				Deprecation::notice('3.2.0', "Config static $class::\$$name must be marked as private",
+				Deprecation::notice('4.0', "Config static $class::\$$name must be marked as private",
 					Deprecation::SCOPE_GLOBAL);
 				// Don't warn more than once per static
 				$this->statics[$class][$name]['access'] = T_PRIVATE;
@@ -150,6 +151,9 @@ class SS_ConfigStaticManifest {
  * We can't do this using TokenisedRegularExpression because we need to keep track of state
  * as we process the token list (when we enter and leave a namespace or class, when we see
  * an access level keyword, etc)
+ *
+ * @package framework
+ * @subpackage manifest
  */
 class SS_ConfigStaticManifest_Parser {
 
@@ -182,7 +186,7 @@ class SS_ConfigStaticManifest_Parser {
 	 * Get the next token to process, incrementing the pointer
 	 *
 	 * @param bool $ignoreWhitespace - if true will skip any whitespace tokens & only return non-whitespace ones
-	 * @return null | int - Either the next token or null if there isn't one
+	 * @return null | mixed - Either the next token or null if there isn't one
 	 */
 	protected function next($ignoreWhitespace = true) {
 		do {
@@ -195,21 +199,82 @@ class SS_ConfigStaticManifest_Parser {
 	}
 
 	/**
+	 * Get the previous token processed. Does *not* decrement the pointer
+	 *
+	 * @param bool $ignoreWhitespace - if true will skip any whitespace tokens & only return non-whitespace ones
+	 * @return null | mixed - Either the previous token or null if there isn't one
+	 */
+	protected function lastToken($ignoreWhitespace = true) {
+		// Subtract 1 as the pointer is always 1 place ahead of the current token
+		$pos = $this->pos - 1;
+		do {
+			if($pos <= 0) return null;
+			$pos--;
+			$prev = $this->tokens[$pos];
+		}
+		while($ignoreWhitespace && is_array($prev) && $prev[0] == T_WHITESPACE);
+
+		return $prev;
+	}
+
+	/**
+	 * Get the next set of tokens that form a string to process,
+	 * incrementing the pointer
+	 *
+	 * @param bool $ignoreWhitespace - if true will skip any whitespace tokens
+	 *             & only return non-whitespace ones
+	 * @return null|string - Either the next string or null if there isn't one
+	 */
+	protected function nextString($ignoreWhitespace = true) {
+		static $stop = array('{', '}', '(', ')', '[', ']');
+
+		$string = '';
+		while ($this->pos < $this->length) {
+			$next = $this->tokens[$this->pos];
+			if (is_string($next)) {
+				if (!in_array($next, $stop)) {
+					$string .= $next;
+				} else {
+					break;
+				}
+			} else if ($next[0] == T_STRING) {
+				$string .= $next[1];
+			} else if ($next[0] != T_WHITESPACE || !$ignoreWhitespace) {
+				break;
+			}
+			$this->pos++;
+		}
+		if ($string === '') {
+			return null;
+		} else {
+			return $string;
+		}
+	}
+
+	/**
 	 * Parse the given file to find the static variables declared in it, along with their access & values
 	 */
 	function parse() {
 		$depth = 0; $namespace = null; $class = null; $clsdepth = null; $access = 0;
 
 		while($token = $this->next()) {
-			$type = is_array($token) ? $token[0] : $token;
+			$type = ($token === (array)$token) ? $token[0] : $token;
 
 			if($type == T_CLASS) {
-				$next = $this->next();
-				if($next[0] != T_STRING) {
+				$lastToken = $this->lastToken();
+				$lastType = ($lastToken === (array)$lastToken) ? $lastToken[0] : $lastToken;
+
+				// Ignore class keyword if it's being used for class name resolution: ClassName::class
+				if ($lastType === T_PAAMAYIM_NEKUDOTAYIM) {
+					continue;
+				}
+
+				$next = $this->nextString();
+				if($next === null) {
 					user_error("Couldn\'t parse {$this->path} when building config static manifest", E_USER_ERROR);
 				}
 
-				$class = $next[1];
+				$class = $next;
 			}
 			else if($type == T_NAMESPACE) {
 				$namespace = '';
@@ -223,11 +288,11 @@ class SS_ConfigStaticManifest_Parser {
 						$next = $this->next();
 					}
 
-					if($next[0] != T_STRING) {
+					if(!is_string($next) && $next[0] != T_STRING) {
 						user_error("Couldn\'t parse {$this->path} when building config static manifest", E_USER_ERROR);
 					}
 
-					$namespace .= $next[1];
+					$namespace .= is_string($next) ? $next : $next[1];
 				}
 			}
 			else if($type == '{' || $type == T_CURLY_OPEN || $type == T_DOLLAR_OPEN_CURLY_BRACES){
@@ -237,7 +302,7 @@ class SS_ConfigStaticManifest_Parser {
 			else if($type == '}') {
 				$depth -= 1;
 				if($depth < $clsdepth) $class = $clsdepth = null;
-				if($depth < 0) user_error("Hmm - depth calc wrong, hit negatives", E_USER_ERROR);
+				if($depth < 0) user_error("Hmm - depth calc wrong, hit negatives, see: ".$this->path, E_USER_ERROR);
 			}
 			else if($type == T_PUBLIC || $type == T_PRIVATE || $type == T_PROTECTED) {
 				$access = $type;
@@ -264,7 +329,7 @@ class SS_ConfigStaticManifest_Parser {
 		$value = '';
 
 		while($token = $this->next()) {
-			$type = is_array($token) ? $token[0] : $token;
+			$type = ($token === (array)$token) ? $token[0] : $token;
 
 			if($type == T_PUBLIC || $type == T_PRIVATE || $type == T_PROTECTED) {
 				$access = $type;
@@ -282,15 +347,16 @@ class SS_ConfigStaticManifest_Parser {
 				// NOP
 			}
 			else {
-				user_error('Unexpected token when building static manifest: '.print_r($token, true), E_USER_ERROR);
+				user_error('Unexpected token ("' . token_name($type) . '") when building static manifest in class "'
+					. $class . '": '.print_r($token, true), E_USER_ERROR);
 			}
 		}
 
 		if($token == '=') {
 			$depth = 0;
 
-			while($token = $this->next(false)){
-				$type = is_array($token) ? $token[0] : $token;
+			while($token = ($this->pos >= $this->length) ? null : $this->tokens[$this->pos++]) {
+				$type = ($token === (array)$token) ? $token[0] : $token;
 
 				// Track array nesting depth
 				if($type == T_ARRAY || $type == '[') {
@@ -312,7 +378,7 @@ class SS_ConfigStaticManifest_Parser {
 					$value .= $class;
 				}
 				else {
-					$value .= is_array($token) ? $token[1] : $token;
+					$value .= ($token === (array)$token) ? $token[1] : $token;
 				}
 			}
 		}

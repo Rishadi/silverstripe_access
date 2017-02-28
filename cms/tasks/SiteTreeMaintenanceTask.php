@@ -10,7 +10,7 @@ class SiteTreeMaintenanceTask extends Controller {
 	
 	public function makelinksunique() {
 		$badURLs = "'" . implode("', '", DB::query("SELECT URLSegment, count(*) FROM SiteTree GROUP BY URLSegment HAVING count(*) > 1")->column()) . "'";
-		$pages = DataObject::get("SiteTree", "\"URLSegment\" IN ($badURLs)");
+		$pages = DataObject::get("SiteTree", "\"SiteTree\".\"URLSegment\" IN ($badURLs)");
 
 		foreach($pages as $page) {
 			echo "<li>$page->Title: ";
@@ -18,14 +18,14 @@ class SiteTreeMaintenanceTask extends Controller {
 			$page->write();
 			if($urlSegment != $page->URLSegment) {
 				echo _t(
-					'SiteTree.LINKSCHANGEDTO', 
-					" changed {url1} -> {url2}", 
+					'SiteTree.LINKSCHANGEDTO',
+					" changed {url1} -> {url2}",
 					array('url1' => $urlSegment, 'url2' => $page->URLSegment)
 				);
 			}
 			else {
 				echo _t(
-					'SiteTree.LINKSALREADYUNIQUE', 
+					'SiteTree.LINKSALREADYUNIQUE',
 					" {url} is already unique",
 					array('url' => $urlSegment)
 				);

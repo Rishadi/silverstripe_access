@@ -5,14 +5,13 @@ $project = 'mysite';
 
 global $databaseConfig;
 $databaseConfig = array(
-	"type" => 'MySqlDatabase',
-	"server" => 'localhost',
-	"database" => 'myaccess',
-	"path" => '',
+	'type' => 'MySQLDatabase',
+	'server' => 'localhost',
+	'username' => 'root',
+	'password' => '1q2w3e4r',
+	'database' => 'SS_mysite',
+	'path' => ''
 );
 
 // Set the site locale
 i18n::set_locale('en_US');
-
-// Use _ss_environment.php file for configuration
-require_once("conf/ConfigureFromEnv.php");

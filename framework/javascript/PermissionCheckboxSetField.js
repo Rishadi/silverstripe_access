@@ -1,7 +1,7 @@
 (function($) {
-	
+
 	$.entwine('ss', function($){
-		
+
 		/**
 		 * Automatically check and disable all checkboxes if ADMIN permissions are selected.
 		 * As they're disabled, any changes won't be submitted (which is intended behaviour),
@@ -10,8 +10,6 @@
 		$('.permissioncheckboxset .valADMIN input').entwine({
 			onmatch: function() {
 				this._super();
-
-				this.toggleCheckboxes();
 			},
 			onunmatch: function() {
 				this._super();
@@ -40,10 +38,10 @@
 				}
 			}
 		});
-		
+
 		/**
 		 * Automatically check all "CMS section" checkboxes when "Access to all CMS interfaces" is ticked.
-		 * 
+		 *
 		 * @todo This should really be abstracted into a declarative dependency system
 		 * instead of custom logic.
 		 */
@@ -55,30 +53,29 @@
 				}).find('.checkbox').not(this);
 			},
 			onmatch: function() {
-				var checkboxes = this.getCheckboxesExceptThisOne();
-				if($(this).is(':checked')) {
-					checkboxes.each(function() {
-						$(this).attr('disabled', 'disabled');
-						$(this).attr('checked', 'checked');
-					});
-				}
-				
+				this.toggleCheckboxes();
+
 				this._super();
 			},
 			onunmatch: function() {
 				this._super();
 			},
 			onclick: function(e) {
+				this.toggleCheckboxes();
+			},
+			toggleCheckboxes: function() {
 				var checkboxes = this.getCheckboxesExceptThisOne();
 				if($(this).is(':checked')) {
 					checkboxes.each(function() {
-						$(this).attr('disabled', 'disabled');
-						$(this).attr('checked', 'checked');
+						$(this).data('PermissionCheckboxSetField.oldChecked', $(this).is(':checked'));
+						$(this).data('PermissionCheckboxSetField.oldDisabled', $(this).is(':disabled'));
+						$(this).prop('disabled', 'disabled');
+						$(this).prop('checked', 'checked');
 					});
 				} else {
 					checkboxes.each(function() {
-						$(this).attr('checked', '');
-						$(this).attr('disabled', '');
+						$(this).prop('checked', $(this).data('PermissionCheckboxSetField.oldChecked'));
+						$(this).prop('disabled', $(this).data('PermissionCheckboxSetField.oldDisabled'));
 					});
 				}
 			}

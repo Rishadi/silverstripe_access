@@ -1,21 +1,23 @@
 <?php
+
 /**
  * Security section of the CMS
- * @package cms
- * @subpackage security
+ *
+ * @package framework
+ * @subpackage admin
  */
 class SecurityAdmin extends LeftAndMain implements PermissionProvider {
 
 	private static $url_segment = 'security';
-	
+
 	private static $url_rule = '/$Action/$ID/$OtherID';
-	
+
 	private static $menu_title = 'Security';
-	
+
 	private static $tree_class = 'Group';
-	
+
 	private static $subitem_class = 'Member';
-	
+
 	private static $allowed_actions = array(
 		'EditForm',
 		'MemberImportForm',
@@ -52,24 +54,37 @@ class SecurityAdmin extends LeftAndMain implements PermissionProvider {
 	public function roles($request) {
 		return $this->index($request);
 	}
-	
+
 	public function getEditForm($id = null, $fields = null) {
 		// TODO Duplicate record fetching (see parent implementation)
 		if(!$id) $id = $this->currentPageID();
 		$form = parent::getEditForm($id);
-		
+
 		// TODO Duplicate record fetching (see parent implementation)
 		$record = $this->getRecord($id);
-		if($record && !$record->canView()) return Security::permissionFailure($this);
-		
+
+		if($record && !$record->canView()) {
+			return Security::permissionFailure($this);
+		}
+
 		$memberList = GridField::create(
 			'Members',
 			false,
 			Member::get(),
 			$memberListConfig = GridFieldConfig_RecordEditor::create()
-				->addComponent(new GridFieldExportButton())
+				->addComponent(new GridFieldButtonRow('after'))
+				->addComponent(new GridFieldExportButton('buttons-after-left'))
 		)->addExtraClass("members_grid");
-		$memberListConfig->getComponentByType('GridFieldDetailForm')->setValidator(new Member_Validator());
+
+		if($record && method_exists($record, 'getValidator')) {
+			$validator = $record->getValidator();
+		} else {
+			$validator = Injector::inst()->get('Member')->getValidator();
+		}
+
+		$memberListConfig
+			->getComponentByType('GridFieldDetailForm')
+			->setValidator($validator);
 
 		$groupList = GridField::create(
 			'Groups',
@@ -95,7 +110,7 @@ class SecurityAdmin extends LeftAndMain implements PermissionProvider {
 					new LiteralField('MembersCautionText',
 						sprintf('<p class="caution-remove"><strong>%s</strong></p>',
 							_t(
-								'SecurityAdmin.MemberListCaution', 
+								'SecurityAdmin.MemberListCaution',
 								'Caution: Removing members from this list will remove them from all groups and the'
 									. ' database'
 							)
@@ -136,9 +151,9 @@ class SecurityAdmin extends LeftAndMain implements PermissionProvider {
 			));
 		}
 
-		// Tab nav in CMS is rendered through separate template		
+		// Tab nav in CMS is rendered through separate template
 		$root->setTemplate('CMSTabSet');
-		
+
 		// Add roles editing interface
 		if(Permission::check('APPLY_ROLES')) {
 			$rolesField = GridField::create('Roles',
@@ -151,7 +166,7 @@ class SecurityAdmin extends LeftAndMain implements PermissionProvider {
 			$rolesTab->push($rolesField);
 		}
 
-		$actionParam = $this->request->param('Action');
+		$actionParam = $this->getRequest()->param('Action');
 		if($actionParam == 'groups') {
 			$groupsTab->addExtraClass('ui-state-active');
 		} elseif($actionParam == 'users') {
@@ -161,8 +176,8 @@ class SecurityAdmin extends LeftAndMain implements PermissionProvider {
 		}
 
 		$actions = new FieldList();
-		
-		$form = CMSForm::create( 
+
+		$form = CMSForm::create(
 			$this,
 			'EditForm',
 			$fields,
@@ -182,7 +197,7 @@ class SecurityAdmin extends LeftAndMain implements PermissionProvider {
 
 		return $form;
 	}
-	
+
 	public function memberimport() {
 		Requirements::clear();
 		Requirements::css(FRAMEWORK_ADMIN_DIR . '/css/screen.css');
@@ -190,16 +205,16 @@ class SecurityAdmin extends LeftAndMain implements PermissionProvider {
 		Requirements::css(FRAMEWORK_ADMIN_DIR . '/css/MemberImportForm.css');
 		Requirements::javascript(FRAMEWORK_DIR . '/thirdparty/jquery-entwine/dist/jquery.entwine-dist.js');
 		Requirements::javascript(FRAMEWORK_ADMIN_DIR . '/javascript/MemberImportForm.js');
-		
+
 		return $this->renderWith('BlankPage', array(
 			'Form' => $this->MemberImportForm()->forTemplate(),
 			'Content' => ' '
 		));
 	}
-	
+
 	/**
 	 * @see SecurityAdmin_MemberImportForm
-	 * 
+	 *
 	 * @return Form
 	 */
 	public function MemberImportForm() {
@@ -211,10 +226,10 @@ class SecurityAdmin extends LeftAndMain implements PermissionProvider {
 			'MemberImportForm'
 		);
 		$form->setGroup($group);
-		
+
 		return $form;
 	}
-		
+
 	public function groupimport() {
 		Requirements::clear();
 		Requirements::css(FRAMEWORK_ADMIN_DIR . '/css/screen.css');
@@ -222,16 +237,16 @@ class SecurityAdmin extends LeftAndMain implements PermissionProvider {
 		Requirements::css(FRAMEWORK_ADMIN_DIR . '/css/MemberImportForm.css');
 		Requirements::javascript(FRAMEWORK_DIR . '/thirdparty/jquery-entwine/dist/jquery.entwine-dist.js');
 		Requirements::javascript(FRAMEWORK_ADMIN_DIR . '/javascript/MemberImportForm.js');
-		
+
 		return $this->renderWith('BlankPage', array(
 			'Content' => ' ',
 			'Form' => $this->GroupImportForm()->forTemplate()
 		));
 	}
-	
+
 	/**
 	 * @see SecurityAdmin_MemberImportForm
-	 * 
+	 *
 	 * @return Form
 	 */
 	public function GroupImportForm() {
@@ -241,12 +256,12 @@ class SecurityAdmin extends LeftAndMain implements PermissionProvider {
 			$this,
 			'GroupImportForm'
 		);
-		
+
 		return $form;
 	}
 
 	/**
-	 * Disable GridFieldDetailForm backlinks for this view, as its 
+	 * Disable GridFieldDetailForm backlinks for this view, as its
 	 */
 	public function Backlink() {
 		return false;
@@ -258,7 +273,7 @@ class SecurityAdmin extends LeftAndMain implements PermissionProvider {
 		// Name root breadcrumb based on which record is edited,
 		// which can only be determined by looking for the fieldname of the GridField.
 		// Note: Titles should be same titles as tabs in RootForm().
-		$params = $this->request->allParams();
+		$params = $this->getRequest()->allParams();
 		if(isset($params['FieldName'])) {
 			// TODO FieldName param gets overwritten by nested GridFields,
 			// so shows "Members" rather than "Groups" for the following URL:
@@ -266,7 +281,7 @@ class SecurityAdmin extends LeftAndMain implements PermissionProvider {
 			$firstCrumb = $crumbs->shift();
 			if($params['FieldName'] == 'Groups') {
 				$crumbs->unshift(new ArrayData(array(
-					'Title' => singleton('Group')->plural_name(),
+					'Title' => singleton('Group')->i18n_plural_name(),
 					'Link' => $this->Link('groups')
 				)));
 			} elseif($params['FieldName'] == 'Users') {
@@ -281,7 +296,7 @@ class SecurityAdmin extends LeftAndMain implements PermissionProvider {
 				)));
 			}
 			$crumbs->unshift($firstCrumb);
-		} 
+		}
 
 		return $crumbs;
 	}
@@ -314,46 +329,46 @@ class SecurityAdmin extends LeftAndMain implements PermissionProvider {
 			)
 		);
 	}
-	
+
 	/**
 	 * The permissions represented in the $codes will not appearing in the form
 	 * containing {@link PermissionCheckboxSetField} so as not to be checked / unchecked.
-	 * 
-	 * @deprecated 3.1 Use "Permission.hidden_permissions" config setting instead
+	 *
+	 * @deprecated 4.0 Use "Permission.hidden_permissions" config setting instead
 	 * @param $codes String|Array
 	 */
 	public static function add_hidden_permission($codes){
 		if(is_string($codes)) $codes = array($codes);
-		Deprecation::notice('3.2', 'Use "Permission.hidden_permissions" config setting instead');
+		Deprecation::notice('4.0', 'Use "Permission.hidden_permissions" config setting instead');
 		Config::inst()->update('Permission', 'hidden_permissions', $codes);
 	}
-	
+
 	/**
-	 * @deprecated 3.1 Use "Permission.hidden_permissions" config setting instead
+	 * @deprecated 4.0 Use "Permission.hidden_permissions" config setting instead
 	 * @param $codes String|Array
 	 */
 	public static function remove_hidden_permission($codes){
 		if(is_string($codes)) $codes = array($codes);
-		Deprecation::notice('3.2', 'Use "Permission.hidden_permissions" config setting instead');
+		Deprecation::notice('4.0', 'Use "Permission.hidden_permissions" config setting instead');
 		Config::inst()->remove('Permission', 'hidden_permissions', $codes);
 	}
-	
+
 	/**
-	 * @deprecated 3.1 Use "Permission.hidden_permissions" config setting instead
+	 * @deprecated 4.0 Use "Permission.hidden_permissions" config setting instead
 	 * @return Array
 	 */
 	public static function get_hidden_permissions(){
-		Deprecation::notice('3.2', 'Use "Permission.hidden_permissions" config setting instead');
+		Deprecation::notice('4.0', 'Use "Permission.hidden_permissions" config setting instead');
 		Config::inst()->get('Permission', 'hidden_permissions', Config::FIRST_SET);
 	}
-	
+
 	/**
 	 * Clear all permissions previously hidden with {@link add_hidden_permission}
-	 * 
-	 * @deprecated 3.1 Use "Permission.hidden_permissions" config setting instead
+	 *
+	 * @deprecated 4.0 Use "Permission.hidden_permissions" config setting instead
 	 */
 	public static function clear_hidden_permissions(){
-		Deprecation::notice('3.2', 'Use "Permission.hidden_permissions" config setting instead');
+		Deprecation::notice('4.0', 'Use "Permission.hidden_permissions" config setting instead');
 		Config::inst()->remove('Permission', 'hidden_permissions', Config::anything());
 	}
 }

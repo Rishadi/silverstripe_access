@@ -12,7 +12,7 @@
  *
  * Subclasses of ContentController are generally instantiated by ModelAsController; this will create
  * a controller based on the URLSegment action variable, by looking in the SiteTree table.
- * 
+ *
  * @todo Can this be used for anything other than SiteTree controllers?
  *
  * @package cms
@@ -21,6 +21,8 @@
 class ContentController extends Controller {
 
 	protected $dataRecord;
+
+	private static $extensions = array('OldPageRedirector');
 
 	private static $allowed_actions = array(
 		'successfullyinstalled',
@@ -41,14 +43,17 @@ class ContentController extends Controller {
 		}
 		
 		$this->dataRecord = $dataRecord;
-		$this->failover = $this->dataRecord;
+
 		parent::__construct();
+
+		$this->setFailover($this->dataRecord);
 	}
 	
 	/**
 	 * Return the link to this controller, but force the expanded link to be returned so that form methods and
 	 * similar will function properly.
 	 *
+	 * @param string|null $action Action to link to.
 	 * @return string
 	 */
 	public function Link($action = null) {
@@ -68,14 +73,15 @@ class ContentController extends Controller {
 		$parent = SiteTree::get_by_link($parentRef);
 		
 		if(!$parent && is_numeric($parentRef)) {
-			$parent = DataObject::get_by_id('SiteTree', Convert::raw2sql($parentRef));
+			$parent = DataObject::get_by_id('SiteTree', $parentRef);
 		}
 		
 		if($parent) return $parent->Children();
 	}
 	
 	/**
-	 * @return SS_List
+	 * @param string $link
+	 * @return SiteTree
 	 */
 	public function Page($link) {
 		return SiteTree::get_by_link($link);
@@ -86,7 +92,7 @@ class ContentController extends Controller {
 		
 		// If we've accessed the homepage as /home/, then we should redirect to /.
 		if($this->dataRecord && $this->dataRecord instanceof SiteTree
-			 	&& RootURLController::should_be_on_root($this->dataRecord) && (!isset($this->urlParams['Action']) || !$this->urlParams['Action'] ) 
+			 	&& RootURLController::should_be_on_root($this->dataRecord) && (!isset($this->urlParams['Action']) || !$this->urlParams['Action'] )
 				&& !$_POST && !$_FILES && !$this->redirectedTo() ) {
 			$getVars = $_GET;
 			unset($getVars['url']);
@@ -106,39 +112,6 @@ class ContentController extends Controller {
 			return Security::permissionFailure($this);
 		}
 
-		// Draft/Archive security check - only CMS users should be able to look at stage/archived content
-		if(
-			$this->URLSegment != 'Security' 
-			&& !Session::get('unsecuredDraftSite') 
-			&& (
-				Versioned::current_archived_date() 
-				|| (Versioned::current_stage() && Versioned::current_stage() != 'Live')
-			)
-		) {
-			if(!$this->dataRecord->canViewStage(Versioned::current_archived_date() ? 'Stage' : Versioned::current_stage())) {
-				$link = $this->Link();
-				$message = _t(
-					"ContentController.DRAFT_SITE_ACCESS_RESTRICTION", 
-					'You must log in with your CMS password in order to view the draft or archived content. ' .
-					'<a href="%s">Click here to go back to the published site.</a>'
-				);
-				Session::clear('currentStage');
-				Session::clear('archiveDate');
-				
-				$permissionMessage = sprintf(
-					_t(
-						"ContentController.DRAFT_SITE_ACCESS_RESTRICTION",
-						'You must log in with your CMS password in order to view the draft or archived content. '.
-						'<a href="%s">Click here to go back to the published site.</a>'
-					),
-					Controller::join_links($this->Link(), "?stage=Live")
-				);
-
-				return Security::permissionFailure($this, $permissionMessage);
-			}
-
-		}
-		
 		// Use theme from the site config
 		if(($config = SiteConfig::current_site_config()) && $config->Theme) {
 			Config::inst()->update('SSViewer', 'theme', $config->Theme);
@@ -149,7 +122,10 @@ class ContentController extends Controller {
 	 * This acts the same as {@link Controller::handleRequest()}, but if an action cannot be found this will attempt to
 	 * fall over to a child controller in order to provide functionality for nested URLs.
 	 *
+	 * @param SS_HTTPRequest $request
+	 * @param DataModel $model
 	 * @return SS_HTTPResponse
+	 * @throws SS_HTTPResponse_Exception
 	 */
 	public function handleRequest(SS_HTTPRequest $request, DataModel $model = null) {
 		$child  = null;
@@ -163,35 +139,11 @@ class ContentController extends Controller {
 			// See ModelAdController->getNestedController() for similar logic
 			if(class_exists('Translatable')) Translatable::disable_locale_filter();
 			// look for a page with this URLSegment
-			$child = $this->model->SiteTree->where(sprintf (
-				"\"ParentID\" = %s AND \"URLSegment\" = '%s'", $this->ID, Convert::raw2sql(rawurlencode($action))
-			))->First();
+			$child = $this->model->SiteTree->filter(array(
+				'ParentID' => $this->ID,
+				'URLSegment' => rawurlencode($action)
+			))->first();
 			if(class_exists('Translatable')) Translatable::enable_locale_filter();
-			
-			// if we can't find a page with this URLSegment try to find one that used to have 
-			// that URLSegment but changed. See ModelAsController->getNestedController() for similiar logic.
-			if(!$child){
-				$child = ModelAsController::find_old_page($action,$this->ID);
-				if($child){
-					$response = new SS_HTTPResponse();
-					$params = $request->getVars();
-					if(isset($params['url'])) unset($params['url']);
-					$response->redirect(
-						Controller::join_links(
-							$child->Link(
-								Controller::join_links(
-									$request->param('ID'), // 'ID' is the new 'URLSegment', everything shifts up one position
-									$request->param('OtherID')
-								)
-							),
-							// Needs to be in separate join links to avoid urlencoding
-							($params) ? '?' . http_build_query($params) : null
-						),
-						301
-					);
-					return $response;
-				}
-			}
 		}
 		
 		// we found a page with this URLSegment.
@@ -205,8 +157,9 @@ class ContentController extends Controller {
 			// look for a translation and redirect (see #5001). Only happens on the last child in
 			// a potentially nested URL chain.
 			if(class_exists('Translatable')) {
-				if($request->getVar('locale') && $this->dataRecord && $this->dataRecord->Locale != $request->getVar('locale')) {
-					$translation = $this->dataRecord->getTranslation($request->getVar('locale'));
+				$locale = $request->getVar('locale');
+				if($locale && i18n::validate_locale($locale) && $this->dataRecord && $this->dataRecord->Locale != $locale) {
+					$translation = $this->dataRecord->getTranslation($locale);
 					if($translation) {
 						$response = new SS_HTTPResponse();
 						$response->redirect($translation->Link(), 301);
@@ -216,8 +169,18 @@ class ContentController extends Controller {
 			}
 			
 			Director::set_current_page($this->data());
-			$response = parent::handleRequest($request, $model);
-			Director::set_current_page(null);
+
+			try {
+				$response = parent::handleRequest($request, $model);
+
+				Director::set_current_page(null);
+			} catch(SS_HTTPResponse_Exception $e) {
+				$this->popCurrent();
+				
+				Director::set_current_page(null);
+
+				throw $e;
+			}
 		}
 		
 		return $response;
@@ -228,10 +191,10 @@ class ContentController extends Controller {
 	 */
 	public function httpError($code, $message = null) {
 		// Don't use the HTML response for media requests
-		$response = $this->request->isMedia() ? null : ErrorPage::response_for($code);
+		$response = $this->getRequest()->isMedia() ? null : ErrorPage::response_for($code);
 		// Failover to $message if the HTML response is unavailable / inappropriate
 		parent::httpError($code, $response ? $response : $message);
-		}
+	}
 
 	/**
 	 * Get the project name
@@ -254,11 +217,15 @@ class ContentController extends Controller {
 
 	/**
 	 * Returns a fixed navigation menu of the given level.
-	 * @return SS_List
+	 * @param int $level Menu level to return.
+	 * @return ArrayList
 	 */
 	public function getMenu($level = 1) {
 		if($level == 1) {
-			$result = DataObject::get("SiteTree", "\"ShowInMenus\" = 1 AND \"ParentID\" = 0");
+			$result = SiteTree::get()->filter(array(
+				"ShowInMenus" => 1,
+				"ParentID" => 0
+			));
 
 		} else {
 			$parent = $this->data();
@@ -340,7 +307,7 @@ class ContentController extends Controller {
 					</div>
 
 					<div id="switchView" class="bottomTabs">
-						$viewPageIn 
+						$viewPageIn
 						$items
 					</div>
 					</div>
@@ -372,10 +339,10 @@ HTML;
 	 * Inspects the associated {@link dataRecord} for a {@link SiteTree->Locale} value if present,
 	 * and falls back to {@link Translatable::get_current_locale()} or {@link i18n::default_locale()},
 	 * depending if Translatable is enabled.
-	 * 
+	 *
 	 * Suitable for insertion into lang= and xml:lang=
 	 * attributes in HTML or XHTML output.
-	 * 
+	 *
 	 * @return string
 	 */
 	public function ContentLocale() {
@@ -388,7 +355,42 @@ HTML;
 		}
 		
 		return i18n::convert_rfc1766($locale);
+	}	
+
+
+	/**
+	 * Return an SSViewer object to render the template for the current page.
+	 *
+	 * @param $action string
+	 *
+	 * @return SSViewer
+	 */
+	public function getViewer($action) {
+		// Manually set templates should be dealt with by Controller::getViewer()
+		if(isset($this->templates[$action]) && $this->templates[$action]
+			|| (isset($this->templates['index']) && $this->templates['index'])
+			|| $this->template
+		) {
+			return parent::getViewer($action);
+		}
+
+		// Prepare action for template search
+		if($action == "index") $action = "";
+		else $action = '_' . $action;
+
+		$templates = array_merge(
+			// Find templates by dataRecord
+			SSViewer::get_templates_by_class(get_class($this->dataRecord), $action, "SiteTree"),
+			// Next, we need to add templates for all controllers
+			SSViewer::get_templates_by_class(get_class($this), $action, "Controller"),
+			// Fail-over to the same for the "index" action
+			SSViewer::get_templates_by_class(get_class($this->dataRecord), "", "SiteTree"),
+			SSViewer::get_templates_by_class(get_class($this), "", "Controller")
+		);
+
+		return new SSViewer($templates);
 	}
+
 
 	/**
 	 * This action is called by the installation system
@@ -399,7 +401,7 @@ HTML;
 			$this->httpError(410);
 		}
 		// The manifest should be built by now, so it's safe to publish the 404 page
-		$fourohfour = Versioned::get_one_by_stage('ErrorPage', 'Stage', '"ErrorCode" = 404');
+		$fourohfour = Versioned::get_one_by_stage('ErrorPage', 'Stage', '"ErrorPage"."ErrorCode" = 404');
 		if($fourohfour) {
 			$fourohfour->write();
 			$fourohfour->publish("Stage", "Live");

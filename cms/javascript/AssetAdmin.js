@@ -11,7 +11,7 @@
 		$(document).ready(function() {
 			$('#Form_BatchActionsForm').entwine('.ss.tree').register(
 				// TODO Hardcoding of base URL
-				'admin/assets/batchactions/delete', 
+				'admin/assets/batchactions/delete',
 				function(ids) {
 					var confirmed = confirm(
 						ss.i18n.sprintf(
@@ -48,14 +48,14 @@
 			}
 		});
 
-		$('.AssetAdmin.cms-edit-form .action.gridfield-button-delete').entwine({
+		$('.AssetAdmin.cms-edit-form .ss-gridfield .col-buttons .action.gridfield-button-delete, .AssetAdmin.cms-edit-form .Actions button.action.action-delete').entwine({
 			onclick: function(e) {
 				var msg;
 				if(this.closest('.ss-gridfield-item').data('class') == 'Folder') {
 					msg = ss.i18n._t('AssetAdmin.ConfirmDelete');
 				} else {
 					msg = ss.i18n._t('TABLEFIELD.DELETECONFIRMMESSAGE');
-				} 
+				}
 				if(!confirm(msg)) return false;	
 				
 				this.getGridField().reload({data: [{name: this.attr('name'), value: this.val()}]});
@@ -94,7 +94,7 @@
 			
 			/**
 			 * Function: onsubmit
-			 * 
+			 *
 			 * Parameters:
 			 *  (Event) e
 			 */

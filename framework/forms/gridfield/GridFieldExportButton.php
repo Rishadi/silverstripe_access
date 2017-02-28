@@ -3,7 +3,7 @@
 /**
  * Adds an "Export list" button to the bottom of a {@link GridField}.
  *
- * @package framework
+ * @package forms
  * @subpackage fields-gridfield
  */
 
@@ -24,7 +24,7 @@ class GridFieldExportButton implements GridField_HTMLProvider, GridField_ActionP
 	 * @var boolean
 	 */
 	protected $csvHasHeader = true;
-	
+
 	/**
 	 * Fragment to write the button to
 	 */
@@ -44,16 +44,17 @@ class GridFieldExportButton implements GridField_HTMLProvider, GridField_ActionP
 	 */
 	public function getHTMLFragments($gridField) {
 		$button = new GridField_FormAction(
-			$gridField, 
-			'export', 
+			$gridField,
+			'export',
 			_t('TableListField.CSVEXPORT', 'Export to CSV'),
-			'export', 
+			'export',
 			null
 		);
 		$button->setAttribute('data-icon', 'download-csv');
-		$button->addExtraClass('no-ajax');
+		$button->addExtraClass('no-ajax action_export');
+		$button->setForm($gridField->getForm());
 		return array(
-			$this->targetFragment => '<p class="grid-bottom-button grid-csv-button">' . $button->Field() . '</p>',
+			$this->targetFragment => '<p class="grid-csv-button">' . $button->Field() . '</p>',
 		);
 	}
 
@@ -90,6 +91,25 @@ class GridFieldExportButton implements GridField_HTMLProvider, GridField_ActionP
 			return SS_HTTPRequest::send_file($fileData, $fileName, 'text/csv');
 		}
 	}
+	
+	/**
+	 * Return the columns to export
+	 * 
+	 * @param GridField $gridField 
+	 * 
+	 * @return array
+	 */
+	protected function getExportColumnsForGridField(GridField $gridField) {
+		if($this->exportColumns) {
+			$exportColumns = $this->exportColumns;
+		} else if($dataCols = $gridField->getConfig()->getComponentByType('GridFieldDataColumns')) {
+			$exportColumns = $dataCols->getDisplayFields($gridField);
+		} else {
+			$exportColumns = singleton($gridField->getModelClass())->summaryFields();
+		}
+
+		return $exportColumns;
+	}
 
 	/**
 	 * Generate export fields for CSV.
@@ -99,12 +119,8 @@ class GridFieldExportButton implements GridField_HTMLProvider, GridField_ActionP
 	 */
 	public function generateExportFileData($gridField) {
 		$separator = $this->csvSeparator;
-		$csvColumns = ($this->exportColumns)
-			? $this->exportColumns
-			: singleton($gridField->getModelClass())->summaryFields();
+		$csvColumns = $this->getExportColumnsForGridField($gridField);
 		$fileData = '';
-		$columnData = array();
-		$fieldItems = new ArrayList();
 
 		if($this->csvHasHeader) {
 			$headers = array();
@@ -119,6 +135,9 @@ class GridFieldExportButton implements GridField_HTMLProvider, GridField_ActionP
 			$fileData .= "\n";
 		}
 
+		//Remove GridFieldPaginator as we're going to export the entire list.
+		$gridField->getConfig()->removeComponentsByType('GridFieldPaginator');
+
 		$items = $gridField->getManipulatedList();
 
 		// @todo should GridFieldComponents change behaviour based on whether others are available in the config?
@@ -128,28 +147,38 @@ class GridFieldExportButton implements GridField_HTMLProvider, GridField_ActionP
 			}
 		}
 
-		foreach($items as $item) {
-			$columnData = array();
-			foreach($csvColumns as $columnSource => $columnHeader) {
-				if(!is_string($columnHeader) && is_callable($columnHeader)) {
-					if($item->hasMethod($columnSource)) {
-						$relObj = $item->{$columnSource}();
+		foreach($items->limit(null) as $item) {
+			if(!$item->hasMethod('canView') || $item->canView()) {
+				$columnData = array();
+
+				foreach($csvColumns as $columnSource => $columnHeader) {
+					if(!is_string($columnHeader) && is_callable($columnHeader)) {
+						if($item->hasMethod($columnSource)) {
+							$relObj = $item->{$columnSource}();
+						} else {
+							$relObj = $item->relObject($columnSource);
+						}
+
+						$value = $columnHeader($relObj);
 					} else {
-						$relObj = $item->relObject($columnSource);
+						$value = $gridField->getDataFieldValue($item, $columnSource);
+
+						if($value === null) {
+							$value = $gridField->getDataFieldValue($item, $columnHeader);
+						}
 					}
 
-					$value = $columnHeader($relObj);
-				} else {
-					$value = $gridField->getDataFieldValue($item, $columnSource);
+					$value = str_replace(array("\r", "\n"), "\n", $value);
+					$columnData[] = '"' . str_replace('"', '""', $value) . '"';
 				}
 
-				$value = str_replace(array("\r", "\n"), "\n", $value);
-				$columnData[] = '"' . str_replace('"', '\"', $value) . '"';
+				$fileData .= implode($separator, $columnData);
+				$fileData .= "\n";
 			}
-			$fileData .= implode($separator, $columnData);
-			$fileData .= "\n";
 
-			$item->destroy();
+			if($item->hasMethod('destroy')) {
+				$item->destroy();
+			}
 		}
 
 		return $fileData;
@@ -169,7 +198,7 @@ class GridFieldExportButton implements GridField_HTMLProvider, GridField_ActionP
 		$this->exportColumns = $cols;
 		return $this;
 	}
-	
+
 	/**
 	 * @return string
 	 */

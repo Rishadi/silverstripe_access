@@ -81,7 +81,7 @@ abstract class SS_ListDecorator extends ViewableData implements SS_List, SS_Sort
 	}
 
 	public function TotalItems() {
-		return $this->list->TotalItems();
+		return $this->list->Count();
 	}
 
 	public function Count() {
@@ -103,7 +103,7 @@ abstract class SS_ListDecorator extends ViewableData implements SS_List, SS_Sort
 	public function column($value = 'ID') {
 		return $this->list->column($value);
 	}
-	
+
 	public function each($callback) {
 		return $this->list->each($callback);
 	}
@@ -147,8 +147,77 @@ abstract class SS_ListDecorator extends ViewableData implements SS_List, SS_Sort
 		return call_user_func_array(array($this->list, 'filter'), $args);
 	}
 
+	/**
+	 * Return a copy of this list which contains items matching any of these charactaristics.
+	 *
+	 * @example // only bob in the list
+	 *          $list = $list->filterAny('Name', 'bob');
+	 *          // SQL: WHERE "Name" = 'bob'
+	 * @example // azis or bob in the list
+	 *          $list = $list->filterAny('Name', array('aziz', 'bob');
+	 *          // SQL: WHERE ("Name" IN ('aziz','bob'))
+	 * @example // bob or anyone aged 21 in the list
+	 *          $list = $list->filterAny(array('Name'=>'bob, 'Age'=>21));
+	 *          // SQL: WHERE ("Name" = 'bob' OR "Age" = '21')
+	 * @example // bob or anyone aged 21 or 43 in the list
+	 *          $list = $list->filterAny(array('Name'=>'bob, 'Age'=>array(21, 43)));
+	 *          // SQL: WHERE ("Name" = 'bob' OR ("Age" IN ('21', '43'))
+	 * @example // all bobs, phils or anyone aged 21 or 43 in the list
+	 *          $list = $list->filterAny(array('Name'=>array('bob','phil'), 'Age'=>array(21, 43)));
+	 *          // SQL: WHERE (("Name" IN ('bob', 'phil')) OR ("Age" IN ('21', '43'))
+	 *
+	 * @param string|array See {@link filter()}
+	 * @return DataList
+	 */
+	public function filterAny() {
+		return call_user_func_array(array($this->list, __FUNCTION__), func_get_args());
+	}
+
+	/**
+	 * Note that, in the current implementation, the filtered list will be an ArrayList, but this may change in a
+	 * future implementation.
+	 * @see SS_Filterable::filterByCallback()
+	 *
+	 * @example $list = $list->filterByCallback(function($item, $list) { return $item->Age == 9; })
+	 * @param callable $callback
+	 * @return ArrayList (this may change in future implementations)
+	 */
+	public function filterByCallback($callback) {
+		if(!is_callable($callback)) {
+			throw new LogicException(sprintf(
+				"SS_Filterable::filterByCallback() passed callback must be callable, '%s' given",
+				gettype($callback)
+			));
+		}
+		$output = ArrayList::create();
+		foreach($this->list as $item) {
+			if(call_user_func($callback, $item, $this->list)) $output->push($item);
+		}
+		return $output;
+	}
+
 	public function limit($limit, $offset = 0) {
 		return $this->list->limit($limit, $offset);
+	}
+
+	/**
+	 * Return the first item with the given ID
+	 *
+	 * @param int $id
+	 * @return mixed
+	 */
+	public function byID($id) {
+		return $this->list->byID($id);
+	}
+
+	/**
+	 * Filter this list to only contain the given Primary IDs
+	 *
+	 * @param array $ids Array of integers
+	 * @return SS_List
+	 */
+	public function byIDs($ids) {
+		return $this->list->byIDs($ids);
 	}
 
 	/**

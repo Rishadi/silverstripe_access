@@ -2,11 +2,11 @@
 /**
  * Format of the Oembed config. Autodiscover allows discovery of all URLs.
  *
- * Endpoint set to true means autodiscovery for this specific provider is 
+ * Endpoint set to true means autodiscovery for this specific provider is
  * allowed (even if autodiscovery in general has been disabled).
  *
  * <code>
- * 
+ *
  * name: Oembed
  * ---
  * Oembed:
@@ -50,12 +50,19 @@ class Oembed {
 	protected static function find_endpoint($url) {
 		foreach(self::get_providers() as $scheme=>$endpoint) {
 			if(self::matches_scheme($url, $scheme)) {
+				$protocol = Director::is_https() ? 'https' : 'http';
+
+				if (is_array($endpoint)) {
+					if (array_key_exists($protocol, $endpoint)) $endpoint = $endpoint[$protocol];
+					else $endpoint = reset($endpoint);
+				}
+
 				return $endpoint;
 			}
 		}
 		return false;
 	}
-	
+
 	/**
 	 * Checks the URL if it matches against the scheme (pattern).
 	 *
@@ -66,6 +73,7 @@ class Oembed {
 	protected static function matches_scheme($url, $scheme) {
 		$urlInfo = parse_url($url);
 		$schemeInfo = parse_url($scheme);
+
 		foreach($schemeInfo as $k=>$v) {
 			if(!array_key_exists($k, $urlInfo)) {
 				return false;
@@ -93,32 +101,42 @@ class Oembed {
 	 * @param $url Human readable URL.
 	 * @returns string/bool Oembed URL, or false.
 	 */
-	protected static function autodiscover_from_url($url) {
+	protected static function autodiscover_from_url($url)
+	{
 		// Fetch the URL (cache for a week by default)
-		$service = new RestfulService($url, 60*60*24*7);
+		$service = new RestfulService($url, 60 * 60 * 24 * 7);
 		$body = $service->request();
-		if(!$body || $body->isError()) {
+		if (!$body || $body->isError()) {
 			return false;
 		}
 		$body = $body->getBody();
+		return static::autodiscover_from_body($body);
+	}
 
+	/**
+	 * Given a response body, determine if there is an autodiscover url
+	 *
+	 * @param string $body
+	 * @return bool|string
+	 */
+	public static function autodiscover_from_body($body) {
 		// Look within the body for an oembed link.
-		$pcreOmbed = '#<link[^>]+?(?:href=[\'"](.+?)[\'"][^>]+?)'
+		$pcreOmbed = '#<link[^>]+?(?:href=[\'"](?<first>[^\'"]+?)[\'"][^>]+?)'
 			. '?type=["\']application/json\+oembed["\']'
-			. '(?:[^>]+?href=[\'"](.+?)[\'"])?#';
+			. '(?:[^>]+?href=[\'"](?<second>[^\'"]+?)[\'"])?#';
 
 		if(preg_match_all($pcreOmbed, $body, $matches, PREG_SET_ORDER)) {
 			$match = $matches[0];
-			if(!empty($match[1])) {
-				return html_entity_decode($match[1]);
+			if(!empty($match['second'])) {
+				return html_entity_decode($match['second']);
 			}
-			if(!empty($match[2])) {
-				return html_entity_decode($match[2]);
+			if(!empty($match['first'])) {
+				return html_entity_decode($match['first']);
 			}
 		}
 		return false;
 	}
-	
+
 	/**
 	 * Takes the human-readable URL of an embeddable resource and converts it into an
 	 * Oembed_Result descriptor (which contains a full Oembed resource URL).
@@ -144,7 +162,7 @@ class Oembed {
 			// Build the url manually - we gave all needed information.
 			$oembedUrl = Controller::join_links($endpoint, '?format=json&url=' . rawurlencode($url));
 		}
-		
+
 		// If autodescovery failed the resource might be a direct link to a file
 		if(!$oembedUrl) {
 			if(File::get_app_category(File::get_file_extension($url)) == "image") {
@@ -170,7 +188,7 @@ class Oembed {
 		// No matching Oembed resource found.
 		return false;
 	}
-	
+
 	public static function handle_shortcode($arguments, $url, $parser, $shortcode) {
 		if(isset($arguments['type'])) {
 			$type = $arguments['type'];
@@ -217,11 +235,11 @@ class Oembed_Result extends ViewableData {
 	 * Class to be injected into the resulting HTML element.
 	 */
 	protected $extraClass;
-	
+
 	private static $casting = array(
 		'html' => 'HTMLText',
 	);
-	
+
 	public function __construct($url, $origin = false, $type = false, array $options = array()) {
 		$this->url = $url;
 		$this->origin = $origin;
@@ -230,14 +248,21 @@ class Oembed_Result extends ViewableData {
 		if(isset($options['class'])) {
 			$this->extraClass = $options['class'];
 		}
-		
+		if($options) {
+			if(isset($options['width'])) {
+				$this->Width = $options['width'];
+			}
+			if(isset($options['height'])) {
+				$this->Height = $options['height'];
+			}
+		}
 		parent::__construct();
 	}
 
 	public function getOembedURL() {
 		return $this->url;
 	}
-	
+
 	/**
 	 * Fetches the JSON data from the Oembed URL (cached).
 	 * Only sets the internal variable.
@@ -259,7 +284,10 @@ class Oembed_Result extends ViewableData {
 		if(!$data) {
 			// if the response is no valid JSON we might have received a binary stream to an image
 			$data = array();
-			$image = @imagecreatefromstring($body);
+			if (!function_exists('imagecreatefromstring')) {
+				throw new LogicException('imagecreatefromstring function does not exist - Please make sure GD is installed');
+			}
+			$image = imagecreatefromstring($body);
 			if($image !== FALSE) {
 				preg_match("/^(http:\/\/)?([^\/]+)/i", $this->url, $matches);
 				$protocoll = $matches[1];
@@ -279,6 +307,11 @@ class Oembed_Result extends ViewableData {
 		// Convert all keys to lowercase
 		$data = array_change_key_case($data, CASE_LOWER);
 
+		// Check if we can guess thumbnail
+		if(empty($data['thumbnail_url']) && $thumbnail = $this->findThumbnail($data)) {
+			$data['thumbnail_url'] = $thumbnail;
+		}
+
 		// Purge everything if the type does not match.
 		if($this->type && $this->type != $data['type']) {
 			$data = array();
@@ -286,7 +319,28 @@ class Oembed_Result extends ViewableData {
 
 		$this->data = $data;
 	}
-	
+
+	/**
+	 * Find thumbnail if omitted from data
+	 *
+	 * @param array $data
+	 * @return string
+	 */
+	public function findThumbnail($data) {
+		if(!empty($data['thumbnail_url'])) {
+			return $data['thumbnail_url'];
+		}
+
+		// Hack in facebook graph thumbnail
+		if(!empty($data['provider_name']) && $data['provider_name'] === 'Facebook') {
+			$id = preg_replace("/.*\\/(\\d+?)\\/?($|\\?.*)/", "$1", $data["url"]);
+			return "https://graph.facebook.com/{$id}/picture";
+		}
+
+		// no thumbnail found
+		return null;
+	}
+
 	/**
 	 * Wrap the check for looking into Oembed JSON within $this->data.
 	 */
@@ -294,7 +348,7 @@ class Oembed_Result extends ViewableData {
 		$this->loadData();
 		return array_key_exists(strtolower($field), $this->data);
 	}
-	
+
 	/**
 	 * Wrap the field calls to fetch data from Oembed JSON (within $this->data)
 	 */
@@ -304,7 +358,7 @@ class Oembed_Result extends ViewableData {
 			return $this->data[$field];
 		}
 	}
-	
+
 	public function forTemplate() {
 		$this->loadData();
 		switch($this->Type) {
@@ -324,7 +378,7 @@ class Oembed_Result extends ViewableData {
 			break;
 		}
 	}
-	
+
 	public function exists() {
 		$this->loadData();
 		return count($this->data) > 0;

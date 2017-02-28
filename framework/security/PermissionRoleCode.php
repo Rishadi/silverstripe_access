@@ -1,15 +1,21 @@
 <?php
 /**
  * A PermissionRoleCode represents a single permission code assigned to a {@link PermissionRole}.
- * 
+ *
  * @package framework
  * @subpackage security
+ *
+ * @property string Code
+ *
+ * @property int RoleID
+ *
+ * @method PermissionRole Role()
  */
 class PermissionRoleCode extends DataObject {
 	private static $db = array(
 		"Code" => "Varchar",
 	);
-	
+
 	private static $has_one = array(
 		"Role" => "PermissionRole",
 	);

@@ -1,8 +1,8 @@
 /**
  * Functions for HtmlEditorFields in the back end.
- * Includes the JS for the ImageUpload forms. 
- * 
- * Relies on the jquery.form.js plugin to power the 
+ * Includes the JS for the ImageUpload forms.
+ *
+ * Relies on the jquery.form.js plugin to power the
  * ajax / iframe submissions
  */
 
@@ -14,7 +14,7 @@ var ss = ss || {};
  */
 ss.editorWrappers = {};
 ss.editorWrappers.tinyMCE = (function() {
-	
+
 	var instance;
 
 	return {
@@ -51,7 +51,7 @@ ss.editorWrappers.tinyMCE = (function() {
 		 * Create a new instance based on a textarea field.
 		 *
 		 * Please proxy the events from your editor implementation into JS events
-		 * on the textarea field. For events that do not map directly, use the 
+		 * on the textarea field. For events that do not map directly, use the
 		 * following naming scheme: editor<event>.
 		 *
 		 * @param String
@@ -74,7 +74,7 @@ ss.editorWrappers.tinyMCE = (function() {
 							this.statusKeyboardNavigation.destroy();
 							this.statusKeyboardNavigation = null;
 						}
-					}
+					};
 
 					ss.editorWrappers.tinyMCE.patched = true;
 				}
@@ -89,15 +89,22 @@ ss.editorWrappers.tinyMCE = (function() {
 				// after an (undetected) inline change. This "blur" causes onChange
 				// to trigger, which will change the button markup to show "alternative" styles,
 				// effectively cancelling the original click event.
-				var interval;
-				jQuery(ed.getBody()).on('focus', function() {
-					interval = setInterval(function() {
-						ed.save();
-					}, 5000);
-				});
-				jQuery(ed.getBody()).on('blur', function() {
-					clearInterval(interval);
-				});
+				if(ed.settings.update_interval) {
+					var interval;
+					jQuery(ed.getBody()).on('focus', function() {
+						interval = setInterval(function() {
+							// Update underlying element as necessary
+							var element = jQuery(ed.getElement());
+							if(ed.isDirty()) {
+								// Set content without triggering editor content cleanup
+								element.val(ed.getContent({format : 'raw', no_events : 1}));
+							}
+						}, ed.settings.update_interval);
+					});
+					jQuery(ed.getBody()).on('blur', function() {
+						clearInterval(interval);
+					});
+				}
 			});
 			this.instance.onChange.add(function(ed, l) {
 				// Update underlying textarea on every change, so external handlers
@@ -123,7 +130,7 @@ ss.editorWrappers.tinyMCE = (function() {
 		},
 		/**
 		 * HTML representation of the edited content.
-		 * 
+		 *
 		 * Returns: {String}
 		 */
 		getContent: function() {
@@ -131,7 +138,7 @@ ss.editorWrappers.tinyMCE = (function() {
 		},
 		/**
 		 * DOM tree of the edited content
-		 * 
+		 *
 		 * Returns: DOMElement
 		 */
 		getDOM: function() {
@@ -145,7 +152,7 @@ ss.editorWrappers.tinyMCE = (function() {
 		},
 		/**
 		 * Get the closest node matching the current selection.
-		 * 
+		 *
 		 * Returns: {jQuery} DOMElement
 		 */
 		getSelectedNode: function() {
@@ -153,7 +160,7 @@ ss.editorWrappers.tinyMCE = (function() {
 		},
 		/**
 		 * Select the given node within the editor DOM
-		 * 
+		 *
 		 * Parameters: {DOMElement}
 		 */
 		selectNode: function(node) {
@@ -161,7 +168,7 @@ ss.editorWrappers.tinyMCE = (function() {
 		},
 		/**
 		 * Replace entire content
-		 * 
+		 *
 		 * @param String HTML
 		 * @param Object opts
 		 */
@@ -170,7 +177,7 @@ ss.editorWrappers.tinyMCE = (function() {
 		},
 		/**
 		 * Insert content at the current caret position
-		 * 
+		 *
 		 * @param String HTML
 		 */
 		insertContent: function(html, opts) {
@@ -178,7 +185,7 @@ ss.editorWrappers.tinyMCE = (function() {
 		},
 		/**
 		 * Replace currently selected content
-		 * 
+		 *
 		 * @param {String} html
 		 */
 		replaceContent: function(html, opts) {
@@ -186,7 +193,7 @@ ss.editorWrappers.tinyMCE = (function() {
 		},
 		/**
 		 * Insert or update a link in the content area (based on current editor selection)
-		 * 
+		 *
 		 * Parameters: {Object} attrs
 		 */
 		insertLink: function(attrs, opts) {
@@ -200,20 +207,21 @@ ss.editorWrappers.tinyMCE = (function() {
 		},
 		/**
 		 * Strip any editor-specific notation from link in order to make it presentable in the UI.
-		 * 
-		 * Parameters: 
-		 *  {Object} 
+		 *
+		 * Parameters:
+		 *  {Object}
 		 *  {DOMElement}
 		 */
 		cleanLink: function(href, node) {
-			var cb = tinyMCE.settings['urlconverter_callback'];
+			var cb = tinyMCE.settings['urlconverter_callback'],
+			    cu = tinyMCE.settings['convert_urls'];
 			if(cb) href = eval(cb + "(href, node, true);");
 
-			// Turn into relative
-			if(href.match(new RegExp('^' + tinyMCE.settings['document_base_url'] + '(.*)$'))) {
+			// Turn into relative, if set in TinyMCE config
+			if(cu && href.match(new RegExp('^' + tinyMCE.settings['document_base_url'] + '(.*)$'))) {
 				href = RegExp.$1;
 			}
-			
+
 			// Get rid of TinyMCE's temporary URLs
 			if(href.match(/^javascript:\s*mctmp/)) href = '';
 
@@ -259,7 +267,7 @@ ss.editorWrappers['default'] = ss.editorWrappers.tinyMCE;
 
 		/**
 		 * Class: textarea.htmleditor
-		 * 
+		 *
 		 * Add tinymce to HtmlEditorFields within the CMS. Works in combination
 		 * with a TinyMCE.init() call which is prepopulated with the used HTMLEditorConfig settings,
 		 * and included in the page as an inline <script> tag.
@@ -286,8 +294,15 @@ ss.editorWrappers['default'] = ss.editorWrappers.tinyMCE;
 			onremove: function() {
 				var ed = tinyMCE.get(this.attr('id'));
 				if (ed) {
-					ed.remove();
-					ed.destroy();
+					try {
+						ed.remove();
+					} catch(ex) {}
+					try {
+						ed.destroy();
+					} catch(ex) {}
+
+					// Remove any residual tinyMCE editor element
+					this.next('.mceEditor').remove();
 
 					// TinyMCE leaves behind events. We should really fix TinyMCE, but lets brute force it for now
 					$.each(jQuery.cache, function(){
@@ -295,7 +310,10 @@ ss.editorWrappers['default'] = ss.editorWrappers.tinyMCE;
 						if (!source) return;
 
 						var parent = source;
-						while (parent && parent.nodeType == 1) parent = parent.parentNode;
+						try {
+							while (parent && parent.nodeType == 1) parent = parent.parentNode;
+						}
+						catch(err) {}
 
 						if (!parent) $(source).unbind().remove();
 					});
@@ -315,8 +333,8 @@ ss.editorWrappers['default'] = ss.editorWrappers.tinyMCE;
 			},
 
 			redraw: function() {
-				// Using a global config (generated through HTMLEditorConfig PHP logic)
-				var config = ssTinyMceConfig, self = this, ed = this.getEditor();
+				// Using textarea config ID from global config object (generated through HTMLEditorConfig PHP logic)
+				var config = ssTinyMceConfig[this.data('config')], self = this, ed = this.getEditor();
 
 				ed.init(config);
 
@@ -441,7 +459,7 @@ ss.editorWrappers['default'] = ss.editorWrappers.tinyMCE;
 
 			// Implementation-dependent serialization of the current editor selection state
 			Bookmark: null,
-			
+
 			// DOMElement pointing to the currently active textarea
 			Element: null,
 
@@ -481,8 +499,8 @@ ss.editorWrappers['default'] = ss.editorWrappers.tinyMCE;
 
 					this.find(':input:not(:submit)[data-skip-autofocus!="true"]').filter(':visible:enabled').eq(0).focus();
 
-					this.updateFromEditor();
 					this.redraw();
+					this.updateFromEditor();
 				},
 
 				onssdialogclose: function(){
@@ -536,6 +554,7 @@ ss.editorWrappers['default'] = ss.editorWrappers.tinyMCE;
 		 * which are toggled through a type dropdown. Variations share fields, so there's only one "title" field in the form.
 		 */
 		$('form.htmleditorfield-linkform').entwine({
+
 			// TODO Entwine doesn't respect submits triggered by ENTER key
 			onsubmit: function(e) {
 				this.insertLink();
@@ -551,49 +570,70 @@ ss.editorWrappers['default'] = ss.editorWrappers.tinyMCE;
 			redraw: function() {
 				this._super();
 
-				var linkType = this.find(':input[name=LinkType]:checked').val(), list = ['internal', 'external', 'file', 'email'];
+				var linkType = this.find(':input[name=LinkType]:checked').val();
 
 				this.addAnchorSelector();
 
+				this.resetFileField();
+
 				// Toggle field visibility depending on the link type.
 				this.find('div.content .field').hide();
-				this.find('.field#LinkType').show();
-				this.find('.field#' + linkType).show();
-				if(linkType == 'internal' || linkType == 'anchor') this.find('.field#Anchor').show();
-				if(linkType !== 'email') this.find('.field#TargetBlank').show();
-				if(linkType == 'anchor') {
-					this.find('.field#AnchorSelector').show();
-					this.find('.field#AnchorRefresh').show();
+				this.find('.field[id$="LinkType"]').show();
+				this.find('.field[id$="' + linkType +'_Holder"]').show();
+
+				if(linkType == 'internal' || linkType == 'anchor') {
+					this.find('.field[id$="Anchor_Holder"]').show();
 				}
-				this.find('.field#Description').show();
+
+				if(linkType == 'email') {
+					this.find('.field[id$="Subject_Holder"]').show();
+				} else {
+					this.find('.field[id$="TargetBlank_Holder"]').show();
+				}
+
+				if(linkType == 'anchor') {
+					this.find('.field[id$="AnchorSelector_Holder"]').show();
+				}
+				this.find('.field[id$="Description_Holder"]').show();
 			},
 			/**
 			 * @return Object Keys: 'href', 'target', 'title'
 			 */
 			getLinkAttributes: function() {
-				var href, target = null, anchor = this.find(':input[name=Anchor]').val();
-				
+				var href,
+					target = null,
+					subject = this.find(':input[name=Subject]').val(),
+					anchor = this.find(':input[name=Anchor]').val();
+
 				// Determine target
-				if(this.find(':input[name=TargetBlank]').is(':checked')) target = '_blank';
-				
+				if(this.find(':input[name=TargetBlank]').is(':checked')) {
+					target = '_blank';
+				}
+
 				// All other attributes
 				switch(this.find(':input[name=LinkType]:checked').val()) {
 					case 'internal':
 						href = '[sitetree_link,id=' + this.find(':input[name=internal]').val() + ']';
-						if(anchor) href += '#' + anchor;
+
+						if(anchor) {
+							href += '#' + anchor;
+						}
+
 						break;
 
 					case 'anchor':
-						href = '#' + anchor; 
+						href = '#' + anchor;
 						break;
-					
+
 					case 'file':
-						href = '[file_link,id=' + this.find(':input[name=file]').val() + ']';
-						target = '_blank';
+						href = '[file_link,id=' + this.find('.ss-uploadfield .ss-uploadfield-item').attr('data-fileid') + ']';
 						break;
-					
+
 					case 'email':
 						href = 'mailto:' + this.find(':input[name=email]').val();
+						if(subject) {
+							href += '?subject=' + encodeURIComponent(subject);
+						}
 						target = null;
 						break;
 
@@ -606,8 +646,8 @@ ss.editorWrappers['default'] = ss.editorWrappers.tinyMCE;
 				}
 
 				return {
-					href : href, 
-					target : target, 
+					href : href,
+					target : target,
 					title : this.find(':input[name=Description]').val()
 				};
 			},
@@ -615,71 +655,158 @@ ss.editorWrappers['default'] = ss.editorWrappers.tinyMCE;
 				this.modifySelection(function(ed){
 					ed.insertLink(this.getLinkAttributes());
 				});
-				this.updateFromEditor();
 			},
 			removeLink: function() {
 				this.modifySelection(function(ed){
 					ed.removeLink();
 				});
+
+				this.resetFileField();
 				this.close();
 			},
+
+			resetFileField: function() {
+				// If there's an attached item, remove it
+				var fileField = this.find('.ss-uploadfield[id$="file_Holder"]'),
+					fileUpload = fileField.data('fileupload'),
+					currentItem = fileField.find('.ss-uploadfield-item[data-fileid]');
+
+				if(currentItem.length) {
+					fileUpload._trigger('destroy', null, {context: currentItem});
+					fileField.find('.ss-uploadfield-addfile').removeClass('borderTop');
+				}
+			},
+
+			/**
+			 * Builds an anchor selector element and injects it into the DOM next to the anchor field.
+			 */
 			addAnchorSelector: function() {
 				// Avoid adding twice
 				if(this.find(':input[name=AnchorSelector]').length) return;
 
-				var self = this, anchorSelector;
+				var self = this;
+				var anchorSelector = $(
+					'<select id="Form_EditorToolbarLinkForm_AnchorSelector" name="AnchorSelector"></select>'
+				);
+				this.find(':input[name=Anchor]').parent().append(anchorSelector);
 
-				// refresh the anchor selector on click, or in case of IE - button click
-				if( !$.browser.ie ) {
-					anchorSelector = $('<select id="Form_EditorToolbarLinkForm_AnchorSelector" name="AnchorSelector"></select>');
-					this.find(':input[name=Anchor]').parent().append(anchorSelector);
-
-					anchorSelector.focus(function(e) {
-						self.refreshAnchors();
-					});
-				} else {
-					var buttonRefresh = $('<a id="Form_EditorToolbarLinkForm_AnchorRefresh" title="Refresh the anchor list" alt="Refresh the anchor list" class="buttonRefresh"><span></span></a>');
-					anchorSelector = $('<select id="Form_EditorToolbarLinkForm_AnchorSelector" class="hasRefreshButton" name="AnchorSelector"></select>');
-					this.find(':input[name=Anchor]').parent().append(buttonRefresh).append(anchorSelector);
-
-					buttonRefresh.click(function(e) {
-						self.refreshAnchors();
-					});
-				}
-
-				// initialization
-				self.refreshAnchors();
+				// Initialise the anchor dropdown.
+				this.updateAnchorSelector();
 
 				// copy the value from dropdown to the text field
 				anchorSelector.change(function(e) {
 					self.find(':input[name="Anchor"]').val($(this).val());
 				});
 			},
-			// this function collects the anchors in the currently active editor and regenerates the dropdown
-			refreshAnchors: function() {
-				var selector = this.find(':input[name=AnchorSelector]'), anchors = [], ed = this.getEditor();
-				// name attribute is defined as CDATA, should accept all characters and entities
-				// http://www.w3.org/TR/1999/REC-html401-19991224/struct/links.html#h-12.2
 
-				if(ed) {
-					var raw = ed.getContent().match(/name="([^"]+?)"|name='([^']+?)'/gim);
-					if (raw && raw.length) {
-						for(var i = 0; i < raw.length; i++) {
-							anchors.push(raw[i].substr(6).replace(/"$/, ''));
+			/**
+			 * Fetch relevant anchors, depending on the link type.
+			 *
+			 * @return $.Deferred A promise of an anchor array, or an error message.
+			 */
+			getAnchors: function() {
+				var linkType = this.find(':input[name=LinkType]:checked').val();
+				var dfdAnchors = $.Deferred();
+
+				switch (linkType) {
+					case 'anchor':
+						// Fetch from the local editor.
+						var collectedAnchors = [];
+						var ed = this.getEditor();
+						// name attribute is defined as CDATA, should accept all characters and entities
+						// http://www.w3.org/TR/1999/REC-html401-19991224/struct/links.html#h-12.2
+
+						if(ed) {
+							var raw = ed.getContent()
+								.match(/\s+(name|id)\s*=\s*(["'])([^\2\s>]*?)\2|\s+(name|id)\s*=\s*([^"']+)[\s +>]/gim);
+							if (raw && raw.length) {
+								for(var i = 0; i < raw.length; i++) {
+									var indexStart = (raw[i].indexOf('id=') == -1) ? 7 : 5;
+									collectedAnchors.push(raw[i].substr(indexStart).replace(/"$/, ''));
+								}
+							}
 						}
-					}
+
+						dfdAnchors.resolve(collectedAnchors);
+						break;
+
+					case 'internal':
+						// Fetch available anchors from the target internal page.
+						var pageId = this.find(':input[name=internal]').val();
+
+						if (pageId) {
+							$.ajax({
+								url: $.path.addSearchParams(
+									this.attr('action').replace('LinkForm', 'getanchors'),
+									{'PageID': parseInt(pageId)}
+								),
+								success: function(body, status, xhr) {
+									dfdAnchors.resolve($.parseJSON(body));
+								},
+								error: function(xhr, status) {
+									dfdAnchors.reject(xhr.responseText);
+								}
+							});
+						} else {
+							dfdAnchors.resolve([]);
+						}
+						break;
+
+					default:
+						// This type does not support anchors at all.
+						dfdAnchors.reject(ss.i18n._t(
+							'HtmlEditorField.ANCHORSNOTSUPPORTED',
+							'Anchors are not supported for this link type.'
+						));
+						break;
 				}
 
+				return dfdAnchors.promise();
+			},
+
+			/**
+			 * Update the anchor list in the dropdown.
+			 */
+			updateAnchorSelector: function() {
+				var self = this;
+				var selector = this.find(':input[name=AnchorSelector]');
+				var dfdAnchors = this.getAnchors();
+
+				// Inform the user we are loading.
 				selector.empty();
 				selector.append($(
 					'<option value="" selected="1">' +
-					ss.i18n._t('HtmlEditorField.SelectAnchor') +
+					ss.i18n._t('HtmlEditorField.LOOKINGFORANCHORS', 'Looking for anchors...') +
 					'</option>'
 				));
-				for (var j = 0; j < anchors.length; j++) {
-					selector.append($('<option value="'+anchors[j]+'">'+anchors[j]+'</option>'));
-				}
+
+				dfdAnchors.done(function(anchors) {
+					selector.empty();
+					selector.append($(
+						'<option value="" selected="1">' +
+						ss.i18n._t('HtmlEditorField.SelectAnchor') +
+						'</option>'
+					));
+
+					if (anchors) {
+						for (var j = 0; j < anchors.length; j++) {
+							selector.append($('<option value="'+anchors[j]+'">'+anchors[j]+'</option>'));
+						}
+					}
+
+				}).fail(function(message) {
+					selector.empty();
+					selector.append($(
+						'<option value="" selected="1">' +
+						message +
+						'</option>'
+					));
+				});
+
+				// Poke the selector for IE8, otherwise the changes won't be noticed.
+				if ($.browser.msie) selector.hide().show();
 			},
+
 			/**
 			 * Updates the state of the dialog inputs to match the editor selection.
 			 * If selection does not contain a link, resets the fields.
@@ -691,116 +818,151 @@ ss.editorWrappers['default'] = ss.editorWrappers.tinyMCE;
 					for(fieldName in data) {
 						var el = this.find(':input[name=' + fieldName + ']'), selected = data[fieldName];
 						// Remove html tags in the selected text that occurs on IE browsers
-						if(typeof(selected) == 'string') selected = selected.replace(htmlTagPattern, ''); 
+						if(typeof(selected) == 'string') selected = selected.replace(htmlTagPattern, '');
 
 						// Set values and invoke the triggers (e.g. for TreeDropdownField).
 						if(el.is(':checkbox')) {
 							el.prop('checked', selected).change();
 						} else if(el.is(':radio')) {
 							el.val([selected]).change();
+						} else if(fieldName == 'file') {
+							// UploadField inputs have a slightly different naming convention
+							el = this.find(':input[name="' + fieldName + '[Uploads][]"]');
+							// We need the UploadField "field", not just the input
+							el = el.parents('.ss-uploadfield');
+
+							// We have to wait for the UploadField to initialise
+							(function attach(el, selected) {
+								if( ! el.getConfig()) {
+									setTimeout(function(){ attach(el, selected); }, 50);
+								} else {
+									el.attachFiles([selected]);
+								}
+							})(el, selected);
 						} else {
 							el.val(selected).change();
 						}
 					}
 				}
 			},
-		/**
-		 * Return information about the currently selected link, suitable for population of the link form.
-		 *
-		 * Returns null if no link was currently selected.
-		 */
-		getCurrentLink: function() {
-			var selectedEl = this.getSelection(),
-				href = "", target = "", title = "", action = "insert", style_class = "";
-			
-			// We use a separate field for linkDataSource from tinyMCE.linkElement.
-			// If we have selected beyond the range of an <a> element, then use use that <a> element to get the link data source,
-			// but we don't use it as the destination for the link insertion
-			var linkDataSource = null;
-			if(selectedEl.length) {
-				if(selectedEl.is('a')) {
-					// Element is a link
-					linkDataSource = selectedEl;
-				// TODO Limit to inline elements, otherwise will also apply to e.g. paragraphs which already contain one or more links
-				// } else if((selectedEl.find('a').length)) {
-					// 	// Element contains a link
-					// 	var firstLinkEl = selectedEl.find('a:first');
-					// 	if(firstLinkEl.length) linkDataSource = firstLinkEl;
-				} else {
-					// Element is a child of a link
-					linkDataSource = selectedEl = selectedEl.parents('a:first');
-				}				
-			}
-			if(linkDataSource && linkDataSource.length) this.modifySelection(function(ed){
-				ed.selectNode(linkDataSource[0]);
-			});
-			
-			// Is anchor not a link
-			if (!linkDataSource.attr('href')) linkDataSource = null;
 
-			if (linkDataSource) {
-				href = linkDataSource.attr('href');
-				target = linkDataSource.attr('target');
-				title = linkDataSource.attr('title');
-				style_class = linkDataSource.attr('class');
-				href = this.getEditor().cleanLink(href, linkDataSource);
-				action = "update";
+			/**
+			 * Return information about the currently selected link, suitable for population of the link form.
+			 *
+			 * Returns null if no link was currently selected.
+			 */
+			getCurrentLink: function() {
+				var selectedEl = this.getSelection(),
+					href = "", target = "", title = "", action = "insert", style_class = "";
+
+				// We use a separate field for linkDataSource from tinyMCE.linkElement.
+				// If we have selected beyond the range of an <a> element, then use use that <a> element to get the link data source,
+				// but we don't use it as the destination for the link insertion
+				var linkDataSource = null;
+				if(selectedEl.length) {
+					if(selectedEl.is('a')) {
+						// Element is a link
+						linkDataSource = selectedEl;
+					// TODO Limit to inline elements, otherwise will also apply to e.g. paragraphs which already contain one or more links
+					// } else if((selectedEl.find('a').length)) {
+						// 	// Element contains a link
+						// 	var firstLinkEl = selectedEl.find('a:first');
+						// 	if(firstLinkEl.length) linkDataSource = firstLinkEl;
+					} else {
+						// Element is a child of a link
+						linkDataSource = selectedEl = selectedEl.parents('a:first');
+					}
+				}
+				if(linkDataSource && linkDataSource.length) this.modifySelection(function(ed){
+					ed.selectNode(linkDataSource[0]);
+				});
+
+				// Is anchor not a link
+				if (!linkDataSource.attr('href')) linkDataSource = null;
+
+				if (linkDataSource) {
+					href = linkDataSource.attr('href');
+					target = linkDataSource.attr('target');
+					title = linkDataSource.attr('title');
+					style_class = linkDataSource.attr('class');
+					href = this.getEditor().cleanLink(href, linkDataSource);
+					action = "update";
+				}
+
+				if(href.match(/^mailto:([^?]*)(\?subject=(.*))?$/)) {
+					return {
+						LinkType: 'email',
+						email: RegExp.$1,
+						Subject: decodeURIComponent(RegExp.$3),
+						Description: title
+					};
+				} else if(href.match(/^(assets\/.*)$/) || href.match(/^\[file_link\s*(?:\s*|%20|,)?id=([0-9]+)\]?(#.*)?$/)) {
+					return {
+						LinkType: 'file',
+						file: RegExp.$1,
+						Description: title,
+						TargetBlank: target ? true : false
+					};
+				} else if(href.match(/^#(.*)$/)) {
+					return {
+						LinkType: 'anchor',
+						Anchor: RegExp.$1,
+						Description: title,
+						TargetBlank: target ? true : false
+					};
+				} else if(href.match(/^\[sitetree_link(?:\s*|%20|,)?id=([0-9]+)\]?(#.*)?$/i)) {
+					return {
+						LinkType: 'internal',
+						internal: RegExp.$1,
+						Anchor: RegExp.$2 ? RegExp.$2.substr(1) : '',
+						Description: title,
+						TargetBlank: target ? true : false
+					};
+				} else if(href) {
+					return {
+						LinkType: 'external',
+						external: href,
+						Description: title,
+						TargetBlank: target ? true : false
+					};
+				} else {
+					// No link/invalid link selected.
+					return null;
+				}
 			}
-			
-			if(href.match(/^mailto:(.*)$/)) {
-				return {
-					LinkType: 'email',
-					email: RegExp.$1,
-					Description: title
-				};
-			} else if(href.match(/^(assets\/.*)$/) || href.match(/^\[file_link\s*(?:\s*|%20|,)?id=([0-9]+)\]?(#.*)?$/)) {
-				return {
-					LinkType: 'file',
-					file: RegExp.$1,
-					Description: title,
-					TargetBlank: target ? true : false
-				};
-			} else if(href.match(/^#(.*)$/)) {
-				return {
-					LinkType: 'anchor',
-					Anchor: RegExp.$1,
-					Description: title,
-					TargetBlank: target ? true : false
-				};
-			} else if(href.match(/^\[sitetree_link(?:\s*|%20|,)?id=([0-9]+)\]?(#.*)?$/i)) {
-				return {
-					LinkType: 'internal',
-					internal: RegExp.$1,
-					Anchor: RegExp.$2 ? RegExp.$2.substr(1) : '',
-					Description: title,
-					TargetBlank: target ? true : false
-				};
-			} else if(href) {
-				return {
-					LinkType: 'external',
-					external: href,
-					Description: title,
-					TargetBlank: target ? true : false
-				};
-			} else {
-				// No link/invalid link selected.
-				return null;
-			}
-		}
 		});
 
 		$('form.htmleditorfield-linkform input[name=LinkType]').entwine({
 			onclick: function(e) {
 				this.parents('form:first').redraw();
+				this._super();
 			},
 			onchange: function() {
 				this.parents('form:first').redraw();
+
+				// Update if a anchor-supporting link type is selected.
+				var linkType = this.parent().find(':checked').val();
+				if (linkType==='anchor' || linkType==='internal') {
+					this.parents('form.htmleditorfield-linkform').updateAnchorSelector();
+				}
+				this._super();
+			}
+		});
+
+		$('form.htmleditorfield-linkform input[name=internal]').entwine({
+			/**
+			 * Update the anchor dropdown if a different page is selected in the "internal" dropdown.
+			 */
+			onvalueupdated: function() {
+				this.parents('form.htmleditorfield-linkform').updateAnchorSelector();
+				this._super();
 			}
 		});
 
 		$('form.htmleditorfield-linkform :submit[name=action_remove]').entwine({
 			onclick: function(e) {
 				this.parents('form:first').removeLink();
+				this._super();
 				return false;
 			}
 		});
@@ -820,7 +982,7 @@ ss.editorWrappers['default'] = ss.editorWrappers.tinyMCE;
 				var updateExisting = Boolean(this.find('.ss-htmleditorfield-file').length);
 				this.find('.overview .action-delete')[updateExisting ? 'hide' : 'show']();
 			},
-			onsubmit: function() {				
+			onsubmit: function() {
 				this.modifySelection(function(ed){
 					this.find('.ss-htmleditorfield-file').each(function() {
 						$(this).insertHTML(ed);
@@ -832,7 +994,7 @@ ss.editorWrappers['default'] = ss.editorWrappers.tinyMCE;
 				this.getDialog().close();
 				return false;
 			},
-			updateFromEditor: function() {			
+			updateFromEditor: function() {
 				var self = this, node = this.getSelection();
 
 				// TODO Depends on managed mime type
@@ -847,7 +1009,7 @@ ss.editorWrappers['default'] = ss.editorWrappers.tinyMCE;
 			},
 			redraw: function(updateExisting) {
 				this._super();
-			
+
 				var node = this.getSelection(),
 					hasItems = Boolean(this.find('.ss-htmleditorfield-file').length),
 					editingSelected = node.is('img'),
@@ -859,8 +1021,8 @@ ss.editorWrappers['default'] = ss.editorWrappers.tinyMCE;
 				// Disable "insert" button if no files are selected
 				this.find('.Actions :submit')
 					.button(hasItems ? 'enable' : 'disable')
-					.toggleClass('ui-state-disabled', !hasItems); 
-					
+					.toggleClass('ui-state-disabled', !hasItems);
+
 				// Hide file selection and step labels when editing an existing file
 				this.find('#MediaFormInsertMediaTabs,.header-edit')[editingSelected ? 'hide' : 'show']();
 
@@ -874,7 +1036,7 @@ ss.editorWrappers['default'] = ss.editorWrappers.tinyMCE;
 				this.find('.Actions .media-update')[editingSelected ? 'show' : 'hide']();
 				this.find('.ss-uploadfield-item-editform').toggleEditForm(editingSelected);
 			},
-			resetFields: function() {				
+			resetFields: function() {
 				this.find('.ss-htmleditorfield-file').remove(); // Remove any existing views
 				this.find('.ss-gridfield-items .ui-selected').removeClass('ui-selected'); // Unselect all items
 				this.find('li.ss-uploadfield-item').remove(); // Remove all selected items
@@ -890,9 +1052,9 @@ ss.editorWrappers['default'] = ss.editorWrappers.tinyMCE;
 
 				var item = $('<div class="ss-htmleditorfield-file loading" />');
 				this.find('.content-edit').prepend(item);
-				
+
 				var dfr = $.Deferred();
-				
+
 				$.ajax({
 					url: $.path.addSearchParams(this.attr('action').replace(/MediaForm/, 'viewfile'), params),
 					success: function(html, status, xhr) {
@@ -906,7 +1068,7 @@ ss.editorWrappers['default'] = ss.editorWrappers.tinyMCE;
 						dfr.reject();
 					}
 				});
-				
+
 				return dfr.promise();
 			}
 		});
@@ -959,6 +1121,7 @@ ss.editorWrappers['default'] = ss.editorWrappers.tinyMCE;
 
 		$('form.htmleditorfield-form.htmleditorfield-mediaform input.remoteurl').entwine({
 			onadd: function() {
+				this._super();
 				this.validate();
 			},
 
@@ -977,6 +1140,7 @@ ss.editorWrappers['default'] = ss.editorWrappers.tinyMCE;
 			validate: function() {
 				var val = this.val(), orig = val;
 
+				val = $.trim(val);
 				val = val.replace(/^https?:\/\//i, '');
 				if (orig !== val) this.val(val);
 
@@ -1042,7 +1206,7 @@ ss.editorWrappers['default'] = ss.editorWrappers.tinyMCE;
 			},
 			/**
 			 * Updates the form values from an existing node in the editor.
-			 * 
+			 *
 			 * @param {DOMElement}
 			 */
 			updateFromNode: function(node) {
@@ -1050,7 +1214,7 @@ ss.editorWrappers['default'] = ss.editorWrappers.tinyMCE;
 			/**
 			 * Transforms values set on the dimensions form fields based on two constraints:
 			 * An aspect ration, and max width/height values. Writes back to the field properties as required.
-			 * 
+			 *
 			 * @param {String} The dimension to constrain the other value by, if any ("Width" or "Height")
 			 * @param {Int} Optional max width
 			 * @param {Int} Optional max height
@@ -1110,7 +1274,9 @@ ss.editorWrappers['default'] = ss.editorWrappers.tinyMCE;
 			 * Logic similar to TinyMCE 'advimage' plugin, insertAndClose() method.
 			 */
 			insertHTML: function(ed) {
-				var form = this.closest('form'), node = form.getSelection(), ed = form.getEditor();
+				var form = this.closest('form');
+				var node = form.getSelection();
+				if (!ed) ed = form.getEditor();
 
 				// Get the attributes & extra data
 				var attrs = this.getAttributes(), extraData = this.getExtraData();
@@ -1205,7 +1371,7 @@ ss.editorWrappers['default'] = ss.editorWrappers.tinyMCE;
 					'params': {'src': attrs.src},
 					'video': {'sources': []}
 				});
-				
+
 				return $('<div />').append(el).html(); // Little hack to get outerHTML string
 			},
 			updateFromNode: function(node) {
@@ -1226,7 +1392,9 @@ ss.editorWrappers['default'] = ss.editorWrappers.tinyMCE;
 					'src' : this.find('.thumbnail-preview').attr('src'),
 					'width' : width ? parseInt(width, 10) : null,
 					'height' : height ? parseInt(height, 10) : null,
-					'class' : this.find(':input[name=CSSClass]').val()
+					'class' : this.find(':input[name=CSSClass]').val(),
+					'alt' : this.find(':input[name=AltText]').val(),
+					'title' : this.find(':input[name=Title]').val()
 				};
 			},
 			getExtraData: function() {
@@ -1249,7 +1417,7 @@ ss.editorWrappers['default'] = ss.editorWrappers.tinyMCE;
 					imgEl = $('<img />').attr(attrs).addClass('ss-htmleditorfield-file embed');
 
 				$.each(extraData, function (key, value) {
-					imgEl.attr('data-' + key, value)
+					imgEl.attr('data-' + key, value);
 				});
 
 				if(extraData.CaptionText) {
@@ -1260,6 +1428,8 @@ ss.editorWrappers['default'] = ss.editorWrappers.tinyMCE;
 				return $('<div />').append(el).html(); // Little hack to get outerHTML string
 			},
 			updateFromNode: function(node) {
+				this.find(':input[name=AltText]').val(node.attr('alt'));
+				this.find(':input[name=Title]').val(node.attr('title'));
 				this.find(':input[name=Width]').val(node.width());
 				this.find(':input[name=Height]').val(node.height());
 				this.find(':input[name=Title]').val(node.attr('title'));
@@ -1273,7 +1443,6 @@ ss.editorWrappers['default'] = ss.editorWrappers.tinyMCE;
 				this._super();
 
 				this.setOrigVal(parseInt(this.val(), 10));
-
 			},
 			onunmatch: function() {
 				this._super();
@@ -1311,14 +1480,20 @@ ss.editorWrappers['default'] = ss.editorWrappers.tinyMCE;
 
 			onclick: function(e) {
 				var editForm = this.getEditForm();
-	
-				editForm.parent('.ss-uploadfield-item').removeClass('ui-state-warning');
 
-				editForm.toggleEditForm();
+				// Make sure we're in an HtmlEditorField here, or fall-back to _super(). HtmlEditorField with
+				// AssetUploadField doesn't use iframes, so needs its own toggleEditForm() logic
+				if (this.closest('.ss-uploadfield-item').hasClass('ss-htmleditorfield-file')) {
+					editForm.parent('ss-uploadfield-item').removeClass('ui-state-warning');
 
-				e.preventDefault(); // Avoid a form submit
+					editForm.toggleEditForm();
 
-				return false; // Avoid duplication from button
+					e.preventDefault(); // Avoid a form submit
+
+					return false; // Avoid duplication from button
+				}
+
+				this._super(e);
 			}
 		});
 
@@ -1330,27 +1505,27 @@ ss.editorWrappers['default'] = ss.editorWrappers.tinyMCE;
 				if(bool === true || (bool !== false && this.height() === 0)) {
 					text = ss.i18n._t('UploadField.Editing', "Editing ...");
 					this.height('auto');
-					itemInfo.find('.toggle-details-icon').addClass('opened');					
+					itemInfo.find('.toggle-details-icon').addClass('opened');
 					status.removeClass('ui-state-success-text').removeClass('ui-state-warning-text');
 				} else {
-					this.height(0);					
+					this.height(0);
 					itemInfo.find('.toggle-details-icon').removeClass('opened');
 					if(!this.hasClass('edited')){
-						text = ss.i18n._t('UploadField.NOCHANGES', 'No Changes')
+						text = ss.i18n._t('UploadField.NOCHANGES', 'No Changes');
 						status.addClass('ui-state-success-text');
-					}else{						
-						text = ss.i18n._t('UploadField.CHANGESSAVED', 'Changes Made')
+					}else{
+						text = ss.i18n._t('UploadField.CHANGESSAVED', 'Changes Made');
 						this.removeClass('edited');
-						status.addClass('ui-state-success-text');	
+						status.addClass('ui-state-success-text');
 					}
-				
+
 				}
-				status.attr('title',text).text(text);	
+				status.attr('title',text).text(text);
 			}
 		});
 
 
-		$('form.htmleditorfield-mediaform #ParentID .TreeDropdownField').entwine({
+		$('form.htmleditorfield-mediaform .field[id$="ParentID_Holder"] .TreeDropdownField').entwine({
 			onadd: function() {
 				this._super();
 
@@ -1363,7 +1538,7 @@ ss.editorWrappers['default'] = ss.editorWrappers.tinyMCE;
 				});
 			}
 		});
-		
+
 	});
 })(jQuery);
 
@@ -1373,24 +1548,22 @@ ss.editorWrappers['default'] = ss.editorWrappers.tinyMCE;
  */
 function sapphiremce_cleanup(type, value) {
 	if(type == 'get_from_editor') {
-		// replace indented text with a <blockquote>
-		value = value.replace(/<p [^>]*margin-left[^>]*>([^\n|\n\015|\015\n]*)<\/p>/ig,"<blockquote><p>$1</p></blockquote>");
-	
+
 		// replace VML pixel image references with image tags - experimental
 		value = value.replace(/<[a-z0-9]+:imagedata[^>]+src="?([^> "]+)"?[^>]*>/ig,"<img src=\"$1\">");
-		
+
 		// Word comments
-		value = value.replace(new RegExp('<(!--)([^>]*)(--)>', 'g'), ""); 
-			
-		// kill class=mso??? and on mouse* tags  
-		value = value.replace(/([ \f\r\t\n\'\"])class=mso[a-z0-9]+[^ >]+/ig, "$1"); 
-		value = value.replace(/([ \f\r\t\n\'\"]class=")mso[a-z0-9]+[^ ">]+ /ig, "$1"); 
-		value = value.replace(/([ \f\r\t\n\'\"])class="mso[a-z0-9]+[^">]+"/ig, "$1"); 
+		value = value.replace(new RegExp('<(!--)([^>]*)(--)>', 'g'), "");
+
+		// kill class=mso??? and on mouse* tags
+		value = value.replace(/([ \f\r\t\n\'\"])class=mso[a-z0-9]+[^ >]+/ig, "$1");
+		value = value.replace(/([ \f\r\t\n\'\"]class=")mso[a-z0-9]+[^ ">]+ /ig, "$1");
+		value = value.replace(/([ \f\r\t\n\'\"])class="mso[a-z0-9]+[^">]+"/ig, "$1");
 		value = value.replace(/([ \f\r\t\n\'\"])on[a-z]+=[^ >]+/ig, "$1");
-		value = value.replace(/ >/ig, ">"); 
-	
+		value = value.replace(/ >/ig, ">");
+
 		// remove everything that's in a closing tag
-		value = value.replace(/<(\/[A-Za-z0-9]+)[ \f\r\t\n]+[^>]*>/ig,"<$1>");		
+		value = value.replace(/<(\/[A-Za-z0-9]+)[ \f\r\t\n]+[^>]*>/ig,"<$1>");
 	}
 
 	if(type == 'get_from_editor_dom') {
@@ -1400,17 +1573,6 @@ function sapphiremce_cleanup(type, value) {
 			this.removeAttribute('onresizestart');
 			this.removeAttribute('onresizeend');
 		});
-	}
-
-	// if we are inserting from a popup back into the editor
-	// add the changed class and update the Content value
-	if(type == 'insert_to_editor' && typeof tinyMCE.selectedInstance.editorId !== 'undefined') {
-		var field = jQuery('#' + tinyMCE.selectedInstance.editorId);
-		var original = field.val();
-		if (original != value) {
-			field.val(value).addClass('changed');
-			field.closest('form').addClass('changed');
-		}
 	}
 
 	return value;

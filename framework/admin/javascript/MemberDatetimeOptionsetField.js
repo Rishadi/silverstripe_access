@@ -1,6 +1,6 @@
 (function($) {
 	$.entwine('ss', function($){
-		
+
 		$('.memberdatetimeoptionset').entwine({
 			onmatch: function() {
 				this.find('.description .toggle-content').hide();
@@ -16,5 +16,5 @@
 		});
 
 	});
-	
+
 }(jQuery));
